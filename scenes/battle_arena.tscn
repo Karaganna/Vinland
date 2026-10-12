@@ -1,0 +1,62 @@
+[gd_scene format=3 uid="uid://c1ghc8ajapf3t"]
+
+[ext_resource type="Script" uid="uid://b513talrtaycu" path="res://scenes/battle.gd" id="1_d3rmf"]
+[ext_resource type="PackedScene" uid="uid://bguj3ng2ol4p0" path="res://scenes/Player.tscn" id="2_u0dfl"]
+[ext_resource type="Script" uid="uid://bg8h5dn4gal2d" path="res://scripts/player.gd" id="3_u0dfl"]
+
+[sub_resource type="SegmentShape2D" id="SegmentShape2D_1jx7t"]
+
+[sub_resource type="SegmentShape2D" id="SegmentShape2D_0rklv"]
+
+[sub_resource type="SegmentShape2D" id="SegmentShape2D_j3iaf"]
+
+[sub_resource type="SegmentShape2D" id="SegmentShape2D_7kbcm"]
+
+[node name="BattleArena" type="Node2D" unique_id=1163270987]
+script = ExtResource("1_d3rmf")
+
+[node name="Background" type="ColorRect" parent="." unique_id=1367444570]
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="CombatBox" type="StaticBody2D" parent="." unique_id=535519344]
+
+[node name="WallTop" type="CollisionShape2D" parent="CombatBox" unique_id=821738641]
+shape = SubResource("SegmentShape2D_1jx7t")
+
+[node name="BoxBorder" type="ReferenceRect" parent="CombatBox" unique_id=1747242579]
+offset_left = 220.0
+offset_top = 120.0
+offset_right = 420.0
+offset_bottom = 240.0
+editor_only = false
+
+[node name="WallBottom" type="CollisionShape2D" parent="CombatBox" unique_id=1881746694]
+shape = SubResource("SegmentShape2D_0rklv")
+
+[node name="WallLeft" type="CollisionShape2D" parent="CombatBox" unique_id=1339046012]
+shape = SubResource("SegmentShape2D_j3iaf")
+
+[node name="WallRight" type="CollisionShape2D" parent="CombatBox" unique_id=449629731]
+shape = SubResource("SegmentShape2D_7kbcm")
+
+[node name="BattleUI" type="CanvasLayer" parent="." unique_id=2092935710]
+
+[node name="ActionMenu" type="HBoxContainer" parent="BattleUI" unique_id=850862165]
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="AttackButton" type="Button" parent="BattleUI/ActionMenu" unique_id=228326462]
+layout_mode = 2
+
+[node name="VowButton" type="Button" parent="BattleUI/ActionMenu" unique_id=1465015508]
+layout_mode = 2
+
+[node name="SongButton" type="Button" parent="BattleUI/ActionMenu" unique_id=1107905447]
+layout_mode = 2
+
+[node name="ItemButton" type="Button" parent="BattleUI/ActionMenu" unique_id=1014639042]
+layout_mode = 2
+
+[node name="Player" parent="." unique_id=1462943131 instance=ExtResource("2_u0dfl")]
+script = ExtResource("3_u0dfl")
