@@ -4,59 +4,50 @@
 [ext_resource type="PackedScene" uid="uid://bguj3ng2ol4p0" path="res://scenes/Player.tscn" id="2_u0dfl"]
 [ext_resource type="Script" uid="uid://bg8h5dn4gal2d" path="res://scripts/player.gd" id="3_u0dfl"]
 
-[sub_resource type="SegmentShape2D" id="SegmentShape2D_1jx7t"]
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_horiz"]
+size = Vector2(1920, 32)
 
-[sub_resource type="SegmentShape2D" id="SegmentShape2D_0rklv"]
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_vert"]
+size = Vector2(32, 1080)
 
-[sub_resource type="SegmentShape2D" id="SegmentShape2D_j3iaf"]
-
-[sub_resource type="SegmentShape2D" id="SegmentShape2D_7kbcm"]
-
-[node name="BattleArena" type="Node2D" unique_id=1163270987]
+[node name="BattleArena" type="Node2D"]
 script = ExtResource("1_d3rmf")
 
-[node name="Background" type="ColorRect" parent="." unique_id=1367444570]
-offset_right = 40.0
-offset_bottom = 40.0
+[node name="Background" type="ColorRect" parent="."]
+offset_right = 1920.0
+offset_bottom = 1080.0
+color = Color(0.18, 0.42, 0.22, 1)
 
-[node name="CombatBox" type="StaticBody2D" parent="." unique_id=535519344]
+[node name="Boundaries" type="StaticBody2D" parent="."]
 
-[node name="WallTop" type="CollisionShape2D" parent="CombatBox" unique_id=821738641]
-shape = SubResource("SegmentShape2D_1jx7t")
+[node name="BorderLine" type="Line2D" parent="Boundaries"]
+points = PackedVector2Array(1, 1, 1919, 1, 1919, 1079, 1, 1079, 1, 1)
+width = 2.0
+default_color = Color(0.1, 0.26, 0.12, 1)
 
-[node name="BoxBorder" type="ReferenceRect" parent="CombatBox" unique_id=1747242579]
-offset_left = 220.0
-offset_top = 120.0
-offset_right = 420.0
-offset_bottom = 240.0
-editor_only = false
+[node name="WallTop" type="CollisionShape2D" parent="Boundaries"]
+position = Vector2(960, -16)
+shape = SubResource("RectangleShape2D_horiz")
 
-[node name="WallBottom" type="CollisionShape2D" parent="CombatBox" unique_id=1881746694]
-shape = SubResource("SegmentShape2D_0rklv")
+[node name="WallBottom" type="CollisionShape2D" parent="Boundaries"]
+position = Vector2(960, 1096)
+shape = SubResource("RectangleShape2D_horiz")
 
-[node name="WallLeft" type="CollisionShape2D" parent="CombatBox" unique_id=1339046012]
-shape = SubResource("SegmentShape2D_j3iaf")
+[node name="WallLeft" type="CollisionShape2D" parent="Boundaries"]
+position = Vector2(-16, 540)
+shape = SubResource("RectangleShape2D_vert")
 
-[node name="WallRight" type="CollisionShape2D" parent="CombatBox" unique_id=449629731]
-shape = SubResource("SegmentShape2D_7kbcm")
+[node name="WallRight" type="CollisionShape2D" parent="Boundaries"]
+position = Vector2(1936, 540)
+shape = SubResource("RectangleShape2D_vert")
 
-[node name="BattleUI" type="CanvasLayer" parent="." unique_id=2092935710]
-
-[node name="ActionMenu" type="HBoxContainer" parent="BattleUI" unique_id=850862165]
-offset_right = 40.0
-offset_bottom = 40.0
-
-[node name="AttackButton" type="Button" parent="BattleUI/ActionMenu" unique_id=228326462]
-layout_mode = 2
-
-[node name="VowButton" type="Button" parent="BattleUI/ActionMenu" unique_id=1465015508]
-layout_mode = 2
-
-[node name="SongButton" type="Button" parent="BattleUI/ActionMenu" unique_id=1107905447]
-layout_mode = 2
-
-[node name="ItemButton" type="Button" parent="BattleUI/ActionMenu" unique_id=1014639042]
-layout_mode = 2
-
-[node name="Player" parent="." unique_id=1462943131 instance=ExtResource("2_u0dfl")]
+[node name="Player" parent="." instance=ExtResource("2_u0dfl")]
+position = Vector2(960, 540)
 script = ExtResource("3_u0dfl")
+
+[node name="Camera2D" type="Camera2D" parent="Player"]
+limit_left = 0
+limit_top = 0
+limit_right = 1920
+limit_bottom = 1080
+editor_draw_limits = true
