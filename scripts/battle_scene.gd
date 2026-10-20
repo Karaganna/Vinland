@@ -12,6 +12,7 @@ enum State {
 	PLAYER_ATTACK_QTE,
 	ACTION_RESOLUTION,
 	ENEMY_TURN,
+	PLAYER_DODGE_QTE,
 	VICTORY_COMBAT,
 	VICTORY_VOW,
 	DEFEAT
@@ -343,6 +344,16 @@ func _enter_enemy_turn() -> void:
 		damage = int(round(damage / 2.0))
 		player_defense_buff = false
 	
+	# Проверка на смертельный удар (если текущее HP меньше или равно урону)
+	if player_current_hp <= damage:
+		_start_dodge_sequence(damage)
+		return
+	
+	# Стандартная атака, если удар не является смертельным
+	_apply_enemy_attack(damage)
+
+## Обычное применение атаки врага
+func _apply_enemy_attack(damage: int) -> void:
 	player_current_hp = max(0, player_current_hp - damage)
 	_update_bars()
 	
@@ -360,6 +371,66 @@ func _enter_enemy_turn() -> void:
 		_resolve_defeat()
 	else:
 		_enter_player_turn()
+
+## Запуск QTE экстренного уклонения от смертельного удара
+func _start_dodge_sequence(incoming_damage: int) -> void:
+	current_state = State.PLAYER_DODGE_QTE
+	_update_dialogue_immediate(
+		"[ ⚠ СМЕРТЕЛЬНЫЙ УДАР ⚠ ]",
+		enemy_data.enemy_name + " замахивается для добивающего удара! Жмите СТРЕЛКИ для уклонения!"
+	)
+	
+	var dodge_qte: DodgeQTE = DodgeQTE.new()
+	dodge_qte.name = "DodgeQTEOverlay"
+	dodge_qte.dodge_completed.connect(
+		func(is_success: bool, score_ratio: float, grade_text: String) -> void:
+			_on_dodge_qte_completed(is_success, score_ratio, grade_text, incoming_damage)
+	)
+	add_child(dodge_qte)
+	dodge_qte.start_qte(3, 2.4)
+
+## Обработка результата уклонения
+func _on_dodge_qte_completed(is_success: bool, score_ratio: float, grade_text: String, original_damage: int) -> void:
+	current_state = State.ACTION_RESOLUTION
+	
+	var attack_msg: String = ""
+	
+	if is_success:
+		_animate_player_dodge()
+		
+		if score_ratio >= 0.99:
+			attack_msg = "УКЛОНЕНИЕ: " + grade_text + "! Вы молниеносно уходите с траектории удара! Враг рассёк лишь воздух (Урон: 0)."
+		else:
+			# При частичном уклонении игрок спасается и удерживается на 1 HP
+			player_current_hp = 1
+			_update_bars()
+			_shake_node(_player_sprite)
+			attack_msg = "УКЛОНЕНИЕ: " + grade_text + "! Вы частично смягчили удар и чудом устояли на ногах (осталось 1 HP)!"
+		
+		await _play_dialogue_sequence("[ ИСХОД АТАКИ ]", attack_msg)
+		_enter_player_turn()
+	else:
+		player_current_hp = 0
+		_update_bars()
+		_shake_node(_player_sprite)
+		_flash_node(_player_sprite, Color(1.0, 0.1, 0.1, 1.0))
+		
+		attack_msg = "УКЛОНЕНИЕ: " + grade_text + "! Добивающий удар " + enemy_data.enemy_name + " достиг цели! Нанесено " + str(original_damage) + " урона."
+		await _play_dialogue_sequence("[ СМЕРТЕЛЬНЫЙ УДАР ]", attack_msg)
+		_resolve_defeat()
+
+## Анимация уклонения игрока (отскок назад с полупрозрачностью и возврат)
+func _animate_player_dodge() -> void:
+	if _player_sprite == null:
+		return
+	var orig_pos: Vector2 = _player_sprite.position
+	var tween: Tween = create_tween()
+	tween.tween_property(_player_sprite, "position:x", orig_pos.x - 24.0, 0.1)\
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(_player_sprite, "modulate:a", 0.4, 0.1)
+	tween.tween_property(_player_sprite, "position:x", orig_pos.x, 0.15)\
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	tween.parallel().tween_property(_player_sprite, "modulate:a", 1.0, 0.15)
 
 ## Разрешение исходов битвы
 func _resolve_victory_combat() -> void:
