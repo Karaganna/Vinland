@@ -9,6 +9,7 @@ signal advance_pressed
 enum State {
 	INTRO,
 	PLAYER_TURN,
+	PLAYER_ATTACK_QTE,
 	ACTION_RESOLUTION,
 	ENEMY_TURN,
 	VICTORY_COMBAT,
@@ -214,18 +215,47 @@ func _on_attack_pressed() -> void:
 	if current_state != State.PLAYER_TURN:
 		return
 	
-	current_state = State.ACTION_RESOLUTION
+	current_state = State.PLAYER_ATTACK_QTE
 	_set_action_buttons_enabled(false)
+	_update_dialogue_immediate("[ QTE АТАКИ ]", "Приготовьтесь! Нажимайте подсвеченные клавиши на клавиатуре (WASD).")
 	
-	var damage: int = 20
+	_start_attack_qte()
+
+## Запуск миниигры QTE для атаки
+func _start_attack_qte() -> void:
+	var qte: AttackQTE = AttackQTE.new()
+	qte.name = "AttackQTEOverlay"
+	qte.qte_completed.connect(_on_attack_qte_completed)
+	add_child(qte)
+	qte.start_qte()
+
+## Обработка завершения QTE и расчет урона
+func _on_attack_qte_completed(score_ratio: float, grade_text: String, damage_multiplier: float) -> void:
+	current_state = State.ACTION_RESOLUTION
+	
+	var base_damage: int = 20
+	var damage: int = int(round(base_damage * damage_multiplier))
+	
 	enemy_data.current_hp = max(0, enemy_data.current_hp - damage)
 	_update_bars()
 	
-	_shake_node(_enemy_sprite)
-	_flash_node(_enemy_sprite, Color.WHITE)
+	var attack_msg: String = ""
 	
-	var attack_msg: String = "Вы наносите стремительный удар! " + enemy_data.enemy_name + " получает " + str(damage) + " урона."
-	await _play_dialogue_sequence("[ АТАКА ]", attack_msg)
+	if damage > 0:
+		_shake_node(_enemy_sprite)
+		if damage_multiplier >= 1.2:
+			_flash_node(_enemy_sprite, Color(1.0, 0.9, 0.3, 1.0))
+			attack_msg = "QTE: " + grade_text + "! Сокрушительное комбо! " + enemy_data.enemy_name + " получает " + str(damage) + " крит. урона."
+		elif damage_multiplier >= 1.0:
+			_flash_node(_enemy_sprite, Color.WHITE)
+			attack_msg = "QTE: " + grade_text + "! Точный и уверенный удар! " + enemy_data.enemy_name + " получает " + str(damage) + " урона."
+		else:
+			_flash_node(_enemy_sprite, Color(0.8, 0.8, 0.8, 1.0))
+			attack_msg = "QTE: " + grade_text + ". Удар нанесён неточно. " + enemy_data.enemy_name + " получает " + str(damage) + " урона."
+	else:
+		attack_msg = "QTE: " + grade_text + "! Вы сбились с темпа, и атака сорвалась. Урон не нанесён."
+	
+	await _play_dialogue_sequence("[ РЕЗУЛЬТАТ АТАКИ ]", attack_msg)
 	
 	# Проверка победы боем
 	if enemy_data.current_hp <= 0:
