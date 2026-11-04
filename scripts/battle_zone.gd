@@ -5,7 +5,15 @@ extends Area2D
 ## Сигнал о начале случайной битвы в этой зоне
 signal encounter_triggered(enemy: EnemyData)
 
-@export_group("Настройки битвы")
+@export_group("Настройки времени битв")
+## Использовать ли временной интервал непрерывной ходьбы (30-45 сек) вместо частого шагового броска
+@export var use_time_based_encounters: bool = true
+## Минимальное время активной ходьбы до начала случайной битвы (в секундах)
+@export_range(5.0, 120.0, 1.0) var min_encounter_seconds: float = 30.0
+## Максимальное время активной ходьбы до гарантированной битвы (в секундах)
+@export_range(10.0, 180.0, 1.0) var max_encounter_seconds: float = 45.0
+
+@export_group("Классические настройки шагов (при use_time_based_encounters = false)")
 @export var zone_name: String = "Опасная пустошь"
 ## Шанс встречи (от 0.0 до 1.0) при прохождении каждого интервала шагов
 @export_range(0.01, 1.0, 0.01) var encounter_rate: float = 0.25
@@ -26,6 +34,8 @@ signal encounter_triggered(enemy: EnemyData)
 var _player_in_zone: Player = null
 var _accumulated_distance: float = 0.0
 var _grace_distance_left: float = 0.0
+var _accumulated_walk_time: float = 0.0
+var _target_walk_time: float = 35.0
 var _is_encounter_active: bool = false
 var _collision_shape: CollisionShape2D = null
 
@@ -35,7 +45,11 @@ func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 	body_exited.connect(_on_body_exited)
 	
+	if GameManager != null and GameManager.has_signal("battle_ended"):
+		GameManager.battle_ended.connect(_on_battle_ended)
+	
 	_ensure_collision_shape()
+	_reset_encounter_timer()
 	queue_redraw()
 
 func _ensure_collision_shape() -> void:
@@ -60,17 +74,22 @@ func _physics_process(delta: float) -> void:
 	
 	var current_velocity: Vector2 = _player_in_zone.velocity
 	if current_velocity.length() > 5.0:
-		var moved_dist: float = current_velocity.length() * delta
-		
-		# Сначала тратится льготная дистанция (grace buffer)
-		if _grace_distance_left > 0.0:
-			_grace_distance_left -= moved_dist
-			return
-		
-		_accumulated_distance += moved_dist
-		if _accumulated_distance >= step_interval:
-			_accumulated_distance = 0.0
-			_roll_for_encounter()
+		if use_time_based_encounters:
+			_accumulated_walk_time += delta
+			if _accumulated_walk_time >= _target_walk_time:
+				_start_encounter_sequence()
+		else:
+			var moved_dist: float = current_velocity.length() * delta
+			
+			# Сначала тратится льготная дистанция (grace buffer)
+			if _grace_distance_left > 0.0:
+				_grace_distance_left -= moved_dist
+				return
+			
+			_accumulated_distance += moved_dist
+			if _accumulated_distance >= step_interval:
+				_accumulated_distance = 0.0
+				_roll_for_encounter()
 
 func _roll_for_encounter() -> void:
 	var roll: float = randf()
@@ -121,17 +140,27 @@ func _select_enemy() -> EnemyData:
 	default_enemy.dialogue_defeat = "Дух растворяется в листве."
 	return default_enemy
 
+## Сбрасывает таймеры и генерирует новый интервал ходьбы (30-45 сек)
+func _reset_encounter_timer() -> void:
+	_accumulated_walk_time = 0.0
+	_target_walk_time = randf_range(min_encounter_seconds, max_encounter_seconds)
+	_accumulated_distance = 0.0
+	_grace_distance_left = entry_grace_distance
+	_is_encounter_active = false
+
+func _on_battle_ended(_victory: bool, _by_vow: bool) -> void:
+	_reset_encounter_timer()
+
 func _on_body_entered(body: Node2D) -> void:
 	if body is Player:
 		_player_in_zone = body
-		_accumulated_distance = 0.0
-		_grace_distance_left = entry_grace_distance
-		_is_encounter_active = false
+		_reset_encounter_timer()
 
 func _on_body_exited(body: Node2D) -> void:
 	if body == _player_in_zone:
 		_player_in_zone = null
 		_accumulated_distance = 0.0
+		_accumulated_walk_time = 0.0
 
 func _draw() -> void:
 	if not show_visual_marker:
