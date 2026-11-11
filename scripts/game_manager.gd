@@ -4,9 +4,12 @@ extends Node
 ## Сигналы перехода состояний игры
 signal battle_started(enemy: EnemyData)
 signal battle_ended(victory: bool, by_vow: bool)
+signal location_changed(location_id: String)
 
-## Сохраненная позиция игрока в мире перед битвой
+## Сохраненная позиция игрока в мире перед битвой или при переходе между локациями
 var saved_player_position: Vector2 = Vector2.ZERO
+## Текущая активная локация мира ("home" или "village")
+var current_location_id: String = "home"
 ## Данные текущего противника
 var current_enemy: EnemyData = null
 ## Флаг нахождения в битве
@@ -14,6 +17,7 @@ var is_in_battle: bool = false
 
 ## Пути к сценам
 @export var overworld_scene_path: String = "res://scenes/battle_arena.tscn"
+@export var village_scene_path: String = "res://scenes/village_location.tscn"
 @export var battle_scene_path: String = "res://scenes/battle_scene.tscn"
 
 ## Запуск битвы: сохраняет позицию и переносит на боевую арену
@@ -54,8 +58,41 @@ func _transition_to_battle() -> void:
 	get_tree().root.add_child(battle_node)
 	get_tree().current_scene = battle_node
 
-func _transition_to_overworld() -> void:
+## Переход в локацию Деревня (с зеленым фоном-заглушкой, если .tscn еще не создан)
+func transition_to_village(spawn_pos: Vector2 = Vector2(640.0, 140.0)) -> void:
+	current_location_id = "village"
+	saved_player_position = spawn_pos
+	location_changed.emit(current_location_id)
+	call_deferred("_switch_to_village_scene")
+
+## Возврат в стартовую локацию (Дом героя)
+func transition_to_home(spawn_pos: Vector2 = Vector2(640.0, 295.0)) -> void:
+	current_location_id = "home"
+	saved_player_position = spawn_pos
+	location_changed.emit(current_location_id)
+	call_deferred("_switch_to_home_scene")
+
+func _switch_to_village_scene() -> void:
+	if ResourceLoader.exists(village_scene_path):
+		get_tree().change_scene_to_file(village_scene_path)
+		return
+	
+	var village_node: VillageLocation = VillageLocation.new()
+	var current: Node = get_tree().current_scene
+	if current != null:
+		current.queue_free()
+	
+	get_tree().root.add_child(village_node)
+	get_tree().current_scene = village_node
+
+func _switch_to_home_scene() -> void:
 	if ResourceLoader.exists(overworld_scene_path):
 		get_tree().change_scene_to_file(overworld_scene_path)
 	else:
-		push_error("Сцена мира не найдена по пути: " + overworld_scene_path)
+		push_error("Сцена дома не найдена по пути: " + overworld_scene_path)
+
+func _transition_to_overworld() -> void:
+	if current_location_id == "village":
+		_switch_to_village_scene()
+	else:
+		_switch_to_home_scene()

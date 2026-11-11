@@ -2,70 +2,63 @@
 class_name BattleArena
 extends Node2D
 
-const MAP_WIDTH: float = 1085.0
-const MAP_HEIGHT: float = 992.0
-const LOCATION_TEXTURE_PATH: String = "res://assets/locations/test_locate.png"
+const MAP_WIDTH: float = 1280.0
+const MAP_HEIGHT: float = 783.0
+const LOCATION_TEXTURE_PATH: String = "res://assets/locations/home.png"
 
-## Начальная точка появления игрока в центральном святилище
-@export var default_spawn_position: Vector2 = Vector2(540.0, 520.0)
-## Отображать ли контуры невидимых стен для отладки
+## Начальная точка появления игрока у камина
+@export var default_spawn_position: Vector2 = Vector2(640.0, 295.0)
+## Масштаб персонажа под пропорции интерьера дома
+@export var player_visual_scale: Vector2 = Vector2(3.0, 3.0)
+## Скорость передвижения персонажа в доме
+@export var player_move_speed: float = 180.0
+## Отображать ли контуры невидимых стен и зон для отладки
 @export var debug_show_invisible_walls: bool = false
+## Включать ли случайные битвы прямо в этой локации (в доме отключено по умолчанию)
+@export var enable_random_encounters: bool = false
 
 @onready var player: Player = $Player
 
-## Прямоугольники коллизий невидимых стен (перекрывают бездну и препятствия вокруг биомов и мостов)
+## Прямоугольники коллизий стен и мебели в доме (1280x783)
 const WALL_RECTS: Array[Rect2] = [
-	Rect2(0.0, 0.0, 1088.0, 64.0),
-	Rect2(0.0, 64.0, 512.0, 96.0),
-	Rect2(576.0, 64.0, 512.0, 32.0),
-	Rect2(576.0, 96.0, 256.0, 128.0),
-	Rect2(928.0, 96.0, 160.0, 896.0),
-	Rect2(560.0, 128.0, 16.0, 128.0),
-	Rect2(832.0, 144.0, 16.0, 80.0),
-	Rect2(912.0, 144.0, 16.0, 848.0),
-	Rect2(0.0, 160.0, 80.0, 832.0),
-	Rect2(256.0, 160.0, 256.0, 96.0),
-	Rect2(576.0, 224.0, 32.0, 32.0),
-	Rect2(880.0, 224.0, 32.0, 48.0),
-	Rect2(256.0, 256.0, 176.0, 160.0),
-	Rect2(608.0, 256.0, 192.0, 208.0),
-	Rect2(896.0, 272.0, 16.0, 720.0),
-	Rect2(432.0, 288.0, 176.0, 176.0),
-	Rect2(800.0, 288.0, 32.0, 240.0),
-	Rect2(80.0, 320.0, 80.0, 160.0),
-	Rect2(192.0, 320.0, 64.0, 48.0),
-	Rect2(208.0, 368.0, 48.0, 32.0),
-	Rect2(160.0, 400.0, 48.0, 80.0),
-	Rect2(832.0, 400.0, 16.0, 64.0),
-	Rect2(880.0, 400.0, 16.0, 64.0),
-	Rect2(288.0, 416.0, 144.0, 48.0),
-	Rect2(208.0, 432.0, 16.0, 64.0),
-	Rect2(288.0, 464.0, 112.0, 48.0),
-	Rect2(640.0, 464.0, 160.0, 48.0),
-	Rect2(80.0, 480.0, 32.0, 512.0),
-	Rect2(784.0, 512.0, 16.0, 16.0),
-	Rect2(256.0, 544.0, 144.0, 112.0),
-	Rect2(640.0, 544.0, 80.0, 336.0),
-	Rect2(720.0, 560.0, 32.0, 432.0),
-	Rect2(208.0, 576.0, 48.0, 96.0),
-	Rect2(400.0, 576.0, 112.0, 304.0),
-	Rect2(560.0, 576.0, 80.0, 304.0),
-	Rect2(752.0, 608.0, 144.0, 384.0),
-	Rect2(304.0, 656.0, 96.0, 336.0),
-	Rect2(112.0, 688.0, 80.0, 304.0),
-	Rect2(192.0, 720.0, 112.0, 272.0),
-	Rect2(400.0, 880.0, 16.0, 112.0),
-	Rect2(656.0, 880.0, 64.0, 112.0),
-	Rect2(416.0, 960.0, 240.0, 32.0),
+	# Верхняя стена, камин, полки и окно
+	Rect2(0.0, 0.0, 1280.0, 240.0),
+	Rect2(440.0, 240.0, 50.0, 32.0),   # Табурет слева от камина
+	Rect2(490.0, 240.0, 260.0, 22.0),  # Каменное основание камина
+	Rect2(800.0, 200.0, 108.0, 58.0),  # Шкаф с банками справа от камина
+	# Кровать и тумбочка в левом верхнем углу
+	Rect2(56.0, 180.0, 180.0, 138.0),
+	Rect2(240.0, 220.0, 96.0, 45.0),
+	# Левая стена и мебель слева
+	Rect2(0.0, 0.0, 64.0, 783.0),
+	Rect2(64.0, 324.0, 104.0, 84.0),   # Сундук под кроватью
+	Rect2(64.0, 510.0, 386.0, 135.0),  # Письменный стол с картой, бочка и ящики
+	# Правая стена и мебель справа
+	Rect2(1216.0, 0.0, 64.0, 783.0),
+	Rect2(920.0, 200.0, 296.0, 80.0),  # Бочка, сундук и стойка с копьями сверху справа
+	Rect2(1110.0, 280.0, 106.0, 150.0),# Ящики у правой стены
+	Rect2(1152.0, 480.0, 64.0, 165.0), # Растение и мешок справа снизу
+	Rect2(885.0, 560.0, 215.0, 85.0),  # Сундук и бочка справа снизу
+	# Центральный обеденный стол со скамьей и стулом
+	Rect2(532.0, 355.0, 268.0, 155.0),
+	# Нижняя стена слева и справа от выхода в деревню (проход x = 580..696 открыт)
+	Rect2(0.0, 640.0, 580.0, 143.0),
+	Rect2(696.0, 640.0, 584.0, 143.0),
+	# Нижний край за ступеньками выхода
+	Rect2(580.0, 760.0, 116.0, 23.0),
 ]
 
 func _ready() -> void:
+	GameManager.current_location_id = "home"
 	_clean_legacy_nodes()
 	_setup_map_visuals()
 	_setup_invisible_walls()
 	_setup_player_and_camera()
 	_handle_return_from_battle()
-	_setup_corridor_battle_zone()
+	_setup_house_interactables()
+	_setup_exit_to_village()
+	if enable_random_encounters:
+		_setup_corridor_battle_zone()
 	queue_redraw()
 
 ## Удаляет старый зеленый фон и границы арены 1920x1080
@@ -78,47 +71,46 @@ func _clean_legacy_nodes() -> void:
 	if legacy_bounds != null:
 		legacy_bounds.queue_free()
 
-## Создает спрайт пиксельной локации с правильной фильтрацией
+## Создает или обновляет спрайт стартовой локации (Дом героя)
 func _setup_map_visuals() -> void:
-	# Темный фон бездны
 	var bg_void: ColorRect = get_node_or_null("BackgroundVoid") as ColorRect
 	if bg_void == null:
 		bg_void = ColorRect.new()
 		bg_void.name = "BackgroundVoid"
-		bg_void.offset_left = 0.0
-		bg_void.offset_top = 0.0
-		bg_void.offset_right = MAP_WIDTH
-		bg_void.offset_bottom = MAP_HEIGHT
-		bg_void.color = Color(0.015, 0.015, 0.025, 1.0)
 		add_child(bg_void)
 		move_child(bg_void, 0)
 	
-	# Спрайт локации
+	bg_void.offset_left = 0.0
+	bg_void.offset_top = 0.0
+	bg_void.offset_right = MAP_WIDTH
+	bg_void.offset_bottom = MAP_HEIGHT
+	bg_void.color = Color(0.04, 0.03, 0.03, 1.0)
+	
 	var sprite: Sprite2D = get_node_or_null("LocationSprite") as Sprite2D
 	if sprite == null:
 		sprite = Sprite2D.new()
 		sprite.name = "LocationSprite"
-		sprite.centered = false
-		sprite.position = Vector2.ZERO
-		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		
-		if ResourceLoader.exists(LOCATION_TEXTURE_PATH):
-			var tex: Texture2D = load(LOCATION_TEXTURE_PATH) as Texture2D
-			sprite.texture = tex
 		add_child(sprite)
 		move_child(sprite, 1)
+	
+	sprite.centered = false
+	sprite.position = Vector2.ZERO
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	if ResourceLoader.exists(LOCATION_TEXTURE_PATH):
+		var tex: Texture2D = load(LOCATION_TEXTURE_PATH) as Texture2D
+		sprite.texture = tex
 
-## Процедурная расстановка невидимых стен по всей карте
+## Процедурная расстановка невидимых стен по всей карте дома
 func _setup_invisible_walls() -> void:
 	var walls_node: StaticBody2D = get_node_or_null("InvisibleWalls") as StaticBody2D
 	if walls_node != null:
-		return
+		walls_node.queue_free()
 	
 	walls_node = StaticBody2D.new()
 	walls_node.name = "InvisibleWalls"
 	add_child(walls_node)
 	
-	for i in range(WALL_RECTS.size()):
+	for i: int in range(WALL_RECTS.size()):
 		var rect: Rect2 = WALL_RECTS[i]
 		var col_shape: CollisionShape2D = CollisionShape2D.new()
 		col_shape.name = "Wall_%d" % i
@@ -130,12 +122,14 @@ func _setup_invisible_walls() -> void:
 		
 		walls_node.add_child(col_shape)
 
-## Настройка камеры и начальной позиции персонажа
+## Настройка камеры, масштаба и начальной позиции персонажа у камина
 func _setup_player_and_camera() -> void:
 	if player == null:
 		return
 	
-	# Настройка ограничений камеры под размер карты (1085x992)
+	player.scale = player_visual_scale
+	player.speed = player_move_speed
+	
 	var camera: Camera2D = player.get_node_or_null("Camera2D") as Camera2D
 	if camera != null:
 		camera.limit_left = 0
@@ -144,11 +138,11 @@ func _setup_player_and_camera() -> void:
 		camera.limit_bottom = int(MAP_HEIGHT)
 		camera.editor_draw_limits = true
 	
-	# Установка начальной позиции, если не было сохранения перед боем
+	# Помещаем героя у камина при старте, если нет сохраненной позиции
 	if GameManager.saved_player_position == Vector2.ZERO:
 		player.global_position = default_spawn_position
 
-## Восстанавливает позицию игрока и разблокирует управление при возврате из боя
+## Восстанавливает позицию игрока и разблокирует управление при возврате
 func _handle_return_from_battle() -> void:
 	if GameManager.saved_player_position != Vector2.ZERO:
 		if player != null:
@@ -156,35 +150,88 @@ func _handle_return_from_battle() -> void:
 			player.unlock_movement()
 		GameManager.saved_player_position = Vector2.ZERO
 
-## Боевая зона на всей территории локации со случайными битвами
+## Универсальный метод для добавления интерактивного объекта в локацию
+func register_interactable(
+	p_id: String,
+	p_title: String,
+	p_pos: Vector2,
+	p_size: Vector2,
+	p_lines: Array[String],
+	p_prompt: String = "[E] Осмотреть"
+) -> InteractableObject:
+	var obj: InteractableObject = InteractableObject.create_interactable(
+		p_id, p_title, p_pos, p_size, p_lines, p_prompt
+	)
+	obj.debug_show_zone = debug_show_invisible_walls
+	obj.interacted.connect(_on_house_object_interacted)
+	add_child(obj)
+	return obj
+
+## Базовые интерактивные объекты в доме (готовый шаблон для расширения)
+func _setup_house_interactables() -> void:
+	register_interactable(
+		"fireplace",
+		"Камин",
+		Vector2(640.0, 285.0),
+		Vector2(140.0, 50.0),
+		["В очаге потрескивают сосновые поленья. Тепло огня придает сил перед дорогой."],
+		"[E] Согреться"
+	)
+	register_interactable(
+		"map_desk",
+		"Письменный стол",
+		Vector2(210.0, 495.0),
+		Vector2(180.0, 50.0),
+		["На столе развернута старая карта северных земель и записи о древних Заветах."],
+		"[E] Изучить карту"
+	)
+
+func _on_house_object_interacted(_p: Player, _object_id: String) -> void:
+	# Сюда в будущем можно добавлять квестовые триггеры по _object_id
+	pass
+
+## Зона выхода из дома снизу -> переносит игрока в Деревню
+func _setup_exit_to_village() -> void:
+	var exit_zone: InteractableObject = InteractableObject.create_interactable(
+		"exit_to_village",
+		"Выход в деревню",
+		Vector2(638.0, 705.0),
+		Vector2(112.0, 70.0),
+		[],
+		"Выход в деревню"
+	)
+	exit_zone.trigger_on_enter = true
+	exit_zone.show_prompt_hint = false
+	exit_zone.debug_show_zone = debug_show_invisible_walls
+	exit_zone.interacted.connect(_on_exit_to_village_entered)
+	add_child(exit_zone)
+
+func _on_exit_to_village_entered(_p: Player, _id: String) -> void:
+	GameManager.transition_to_village(Vector2(640.0, 140.0))
+
+## Боевая зона со случайными битвами (используется только если enable_random_encounters = true)
 func _setup_corridor_battle_zone() -> void:
-	# Очищаем старые тестовые зоны
 	var existing_zones: Array[Node] = get_tree().get_nodes_in_group("battle_zones")
-	for zone in existing_zones:
+	for zone: Node in existing_zones:
 		if zone != null and zone.is_inside_tree():
 			zone.queue_free()
 	
 	var world_battle_zone: BattleZone = BattleZone.new()
 	world_battle_zone.name = "CorridorBattleZone"
 	world_battle_zone.zone_name = "Святилище Семи Миров"
-	# Центр карты для Area2D
 	world_battle_zone.position = Vector2(MAP_WIDTH / 2.0, MAP_HEIGHT / 2.0)
 	world_battle_zone.zone_size = Vector2(MAP_WIDTH, MAP_HEIGHT)
 	world_battle_zone.use_time_based_encounters = true
-	world_battle_zone.min_encounter_seconds = 30.0 # Минимум 30 сек активной ходьбы до боя
-	world_battle_zone.max_encounter_seconds = 45.0 # Максимум 45 сек активной ходьбы до боя
-	world_battle_zone.show_visual_marker = false # Отключаем заливку, чтобы не перекрывать пиксель-арт
-	
-	# Наполнение зоны тематическими противниками с двойной системой победы (HP и Завет)
+	world_battle_zone.min_encounter_seconds = 30.0
+	world_battle_zone.max_encounter_seconds = 45.0
+	world_battle_zone.show_visual_marker = false
 	world_battle_zone.possible_enemies = _create_location_enemies()
-	
 	add_child(world_battle_zone)
 
-## Создает противников для локации с учетом механики Завета (Dual Victory Condition)
+## Создает противников с учетом механики Завета (Dual Victory Condition)
 func _create_location_enemies() -> Array[EnemyData]:
 	var list: Array[EnemyData] = []
 	
-	# 1. Хранитель Храма
 	var guardian: EnemyData = EnemyData.new()
 	guardian.enemy_name = "Хранитель Святилища"
 	guardian.max_hp = 65
@@ -201,7 +248,6 @@ func _create_location_enemies() -> Array[EnemyData]:
 	guardian.dialogue_defeat = "Бронзовый доспех с грохотом рассыпается на плитах храма."
 	list.append(guardian)
 	
-	# 2. Морозный Фантом
 	var frost: EnemyData = EnemyData.new()
 	frost.enemy_name = "Морозный Фантом"
 	frost.max_hp = 50
@@ -218,7 +264,6 @@ func _create_location_enemies() -> Array[EnemyData]:
 	frost.dialogue_defeat = "Ледяной призрак раскалывается на осколки и тает."
 	list.append(frost)
 	
-	# 3. Пепельный Скиталец
 	var ashen: EnemyData = EnemyData.new()
 	ashen.enemy_name = "Пепельный Скиталец"
 	ashen.max_hp = 55
@@ -241,9 +286,8 @@ func _draw() -> void:
 	if not debug_show_invisible_walls:
 		return
 	
-	# Отрисовка невидимых стен для наглядной отладки в игре
 	var debug_color: Color = Color(1.0, 0.1, 0.1, 0.35)
 	var border_color: Color = Color(1.0, 0.3, 0.3, 0.8)
-	for rect in WALL_RECTS:
+	for rect: Rect2 in WALL_RECTS:
 		draw_rect(rect, debug_color)
 		draw_rect(rect, border_color, false, 1.0)
