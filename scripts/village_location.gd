@@ -27,32 +27,44 @@ func _ready() -> void:
 	_handle_return_from_battle()
 
 func _setup_green_background() -> void:
-	var bg: ColorRect = ColorRect.new()
-	bg.name = "VillageGreenBackground"
-	bg.position = Vector2.ZERO
-	bg.size = Vector2(VILLAGE_WIDTH, VILLAGE_HEIGHT)
-	bg.color = Color(0.18, 0.45, 0.22, 1.0)
-	add_child(bg)
+	var bg: ColorRect = get_node_or_null("VillageGreenBackground") as ColorRect
+	if bg == null:
+		bg = ColorRect.new()
+		bg.name = "VillageGreenBackground"
+		bg.position = Vector2.ZERO
+		bg.size = Vector2(VILLAGE_WIDTH, VILLAGE_HEIGHT)
+		bg.color = Color(0.18, 0.45, 0.22, 1.0)
+		bg.z_index = -10
+		add_child(bg)
+		move_child(bg, 0)
 	
 	# Тропинка от входа в дом вниз
-	var path_rect: ColorRect = ColorRect.new()
-	path_rect.name = "VillagePathPlaceholder"
-	path_rect.position = Vector2(590.0, 0.0)
-	path_rect.size = Vector2(100.0, VILLAGE_HEIGHT)
-	path_rect.color = Color(0.36, 0.28, 0.18, 0.65)
-	add_child(path_rect)
+	var path_rect: ColorRect = get_node_or_null("VillagePathPlaceholder") as ColorRect
+	if path_rect == null:
+		path_rect = ColorRect.new()
+		path_rect.name = "VillagePathPlaceholder"
+		path_rect.position = Vector2(590.0, 0.0)
+		path_rect.size = Vector2(100.0, VILLAGE_HEIGHT)
+		path_rect.color = Color(0.36, 0.28, 0.18, 0.65)
+		path_rect.z_index = -9
+		add_child(path_rect)
 	
-	var title_label: Label = Label.new()
-	title_label.name = "VillagePlaceholderLabel"
-	title_label.text = "ДЕРЕВНЯ (безопасная локация — заглушка)"
-	title_label.position = Vector2(0.0, 16.0)
-	title_label.size = Vector2(VILLAGE_WIDTH, 32.0)
-	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_label.add_theme_font_size_override("font_size", 16)
-	title_label.add_theme_color_override("font_color", Color(0.95, 0.98, 0.9, 0.9))
-	add_child(title_label)
+	var title_label: Label = get_node_or_null("VillagePlaceholderLabel") as Label
+	if title_label == null:
+		title_label = Label.new()
+		title_label.name = "VillagePlaceholderLabel"
+		title_label.text = "ДЕРЕВНЯ (безопасная локация — заглушка)"
+		title_label.position = Vector2(0.0, 16.0)
+		title_label.size = Vector2(VILLAGE_WIDTH, 32.0)
+		title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		title_label.add_theme_font_size_override("font_size", 16)
+		title_label.add_theme_color_override("font_color", Color(0.95, 0.98, 0.9, 0.9))
+		add_child(title_label)
 
 func _setup_boundaries() -> void:
+	if get_node_or_null("VillageBoundaries") != null:
+		return
+	
 	var bounds: StaticBody2D = StaticBody2D.new()
 	bounds.name = "VillageBoundaries"
 	add_child(bounds)
@@ -75,34 +87,42 @@ func _setup_boundaries() -> void:
 		bounds.add_child(col)
 
 func _setup_return_to_house_zone() -> void:
-	var door_visual: ColorRect = ColorRect.new()
-	door_visual.name = "HouseEntranceMarker"
-	door_visual.position = Vector2(590.0, 0.0)
-	door_visual.size = Vector2(100.0, 48.0)
-	door_visual.color = Color(0.28, 0.18, 0.1, 1.0)
-	add_child(door_visual)
+	var door_visual: ColorRect = get_node_or_null("HouseEntranceMarker") as ColorRect
+	if door_visual == null:
+		door_visual = ColorRect.new()
+		door_visual.name = "HouseEntranceMarker"
+		door_visual.position = Vector2(590.0, 0.0)
+		door_visual.size = Vector2(100.0, 48.0)
+		door_visual.color = Color(0.28, 0.18, 0.1, 1.0)
+		door_visual.z_index = -8
+		add_child(door_visual)
 	
-	var door_label: Label = Label.new()
-	door_label.text = "↑ Дом героя"
-	door_label.position = Vector2(570.0, 50.0)
-	door_label.size = Vector2(140.0, 20.0)
-	door_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	door_label.add_theme_font_size_override("font_size", 11)
-	door_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.7, 1.0))
-	add_child(door_label)
+	var door_label: Label = get_node_or_null("HouseEntranceLabel") as Label
+	if door_label == null:
+		door_label = Label.new()
+		door_label.name = "HouseEntranceLabel"
+		door_label.text = "↑ Дом героя"
+		door_label.position = Vector2(570.0, 50.0)
+		door_label.size = Vector2(140.0, 20.0)
+		door_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		door_label.add_theme_font_size_override("font_size", 11)
+		door_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.7, 1.0))
+		add_child(door_label)
 	
-	var return_trigger: InteractableObject = InteractableObject.create_interactable(
-		"return_home_door",
-		"Вход в дом",
-		Vector2(640.0, 32.0),
-		Vector2(100.0, 44.0),
-		[],
-		"[E] Войти в дом"
-	)
-	return_trigger.trigger_on_enter = true
-	return_trigger.show_prompt_hint = false
-	return_trigger.interacted.connect(_on_return_home_triggered)
-	add_child(return_trigger)
+	var return_trigger: InteractableObject = get_node_or_null("Interactable_return_home_door") as InteractableObject
+	if return_trigger == null:
+		return_trigger = InteractableObject.create_interactable(
+			"return_home_door",
+			"Вход в дом",
+			Vector2(640.0, 32.0),
+			Vector2(100.0, 44.0),
+			[],
+			"[E] Войти в дом"
+		)
+		return_trigger.trigger_on_enter = true
+		return_trigger.show_prompt_hint = false
+		return_trigger.interacted.connect(_on_return_home_triggered)
+		add_child(return_trigger)
 
 func _on_return_home_triggered(_p: Player, _id: String) -> void:
 	GameManager.transition_to_home(Vector2(640.0, 600.0))
@@ -112,36 +132,43 @@ func _setup_temp_test_battle_zone() -> void:
 	var zone_pos: Vector2 = Vector2(850.0, 250.0)
 	var zone_sz: Vector2 = Vector2(220.0, 160.0)
 	
-	var red_bg: ColorRect = ColorRect.new()
-	red_bg.name = "TempBattleZoneRedBg"
-	red_bg.position = zone_pos - (zone_sz / 2.0)
-	red_bg.size = zone_sz
-	red_bg.color = Color(0.85, 0.12, 0.12, 0.55)
-	add_child(red_bg)
+	var red_bg: ColorRect = get_node_or_null("TempBattleZoneRedBg") as ColorRect
+	if red_bg == null:
+		red_bg = ColorRect.new()
+		red_bg.name = "TempBattleZoneRedBg"
+		red_bg.position = zone_pos - (zone_sz / 2.0)
+		red_bg.size = zone_sz
+		red_bg.color = Color(0.85, 0.12, 0.12, 0.55)
+		red_bg.z_index = -8
+		add_child(red_bg)
 	
-	var zone_label: Label = Label.new()
-	zone_label.name = "TempBattleZoneLabel"
-	zone_label.text = "ТЕСТОВАЯ БОЕВАЯ ЗОНА\n(зайдите для проверки Колеса Рун)"
-	zone_label.position = zone_pos - Vector2(130.0, 22.0)
-	zone_label.size = Vector2(260.0, 44.0)
-	zone_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	zone_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	zone_label.add_theme_font_size_override("font_size", 11)
-	zone_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.92, 1.0))
-	add_child(zone_label)
+	var zone_label: Label = get_node_or_null("TempBattleZoneLabel") as Label
+	if zone_label == null:
+		zone_label = Label.new()
+		zone_label.name = "TempBattleZoneLabel"
+		zone_label.text = "ТЕСТОВАЯ БОЕВАЯ ЗОНА\n(зайдите для проверки Колеса Рун)"
+		zone_label.position = zone_pos - Vector2(130.0, 22.0)
+		zone_label.size = Vector2(260.0, 44.0)
+		zone_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		zone_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		zone_label.add_theme_font_size_override("font_size", 11)
+		zone_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.92, 1.0))
+		add_child(zone_label)
 	
-	var test_zone: BattleZone = BattleZone.new()
-	test_zone.name = "TempRedTestBattleZone"
-	test_zone.zone_name = "Тестовая зона боя"
-	test_zone.position = zone_pos
-	test_zone.zone_size = zone_sz
-	test_zone.use_time_based_encounters = true
-	test_zone.min_encounter_seconds = 0.5
-	test_zone.max_encounter_seconds = 0.8
-	test_zone.show_visual_marker = true
-	test_zone.zone_color = Color(0.9, 0.15, 0.15, 0.25)
-	test_zone.border_color = Color(1.0, 0.3, 0.3, 0.95)
-	add_child(test_zone)
+	var test_zone: BattleZone = get_node_or_null("TempRedTestBattleZone") as BattleZone
+	if test_zone == null:
+		test_zone = BattleZone.new()
+		test_zone.name = "TempRedTestBattleZone"
+		test_zone.zone_name = "Тестовая зона боя"
+		test_zone.position = zone_pos
+		test_zone.zone_size = zone_sz
+		test_zone.use_time_based_encounters = true
+		test_zone.min_encounter_seconds = 0.5
+		test_zone.max_encounter_seconds = 0.8
+		test_zone.show_visual_marker = true
+		test_zone.zone_color = Color(0.9, 0.15, 0.15, 0.25)
+		test_zone.border_color = Color(1.0, 0.3, 0.3, 0.95)
+		add_child(test_zone)
 
 func _setup_player_and_camera() -> void:
 	player = get_node_or_null("Player") as Player
