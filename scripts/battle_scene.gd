@@ -66,9 +66,6 @@ func _ready() -> void:
 		_active_attack = player_attacks[0]
 	
 	_build_battle_ui()
-	if _rune_wheel != null and _active_attack != null:
-		_rune_wheel.set_preview_attack(_active_attack)
-	
 	_start_battle_intro()
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -129,11 +126,9 @@ func _start_battle_intro() -> void:
 func _enter_player_turn() -> void:
 	current_state = State.PLAYER_TURN
 	_set_attack_selection_visible(false)
-	if _rune_wheel != null and _active_attack != null:
-		_rune_wheel.set_preview_attack(_active_attack)
 	_update_dialogue_immediate(
 		"[ ВАШ ХОД ]",
-		"Выберите действие. На фоне — Колесо из 10 рун (можно активировать до 3 рун за атаку пробелом)."
+		"Выберите действие: атака, Завет, песнь или предмет."
 	)
 	_set_action_buttons_enabled(true)
 	if _attack_btn != null and _attack_btn.is_inside_tree():
@@ -234,40 +229,143 @@ func _stop_prompt_animation() -> void:
 	if _dialogue_prompt != null:
 		_dialogue_prompt.visible = false
 
-## Нажатие кнопки "Атака" — открывает выбор типа удара с его приоритетными рунами
+## Нажатие кнопки "Атака" — обычная атака срабатывает сразу без QTE и колеса рун
 func _on_attack_pressed() -> void:
-	if current_state != State.PLAYER_TURN and current_state != State.ATTACK_SELECTION:
+	if current_state != State.PLAYER_TURN:
 		return
 	
-	current_state = State.ATTACK_SELECTION
-	if _dialogue_header != null:
-		_dialogue_header.text = "[ ВЫБОР АТАКИ — ПРИОРИТЕТНЫЕ РУНЫ ПОДСВЕЧЕНЫ НА КОЛЕСЕ ]"
-	_set_attack_selection_visible(true)
+	var attack: AttackData = _active_attack
+	if attack == null and not player_attacks.is_empty():
+		attack = player_attacks[0]
+	_execute_basic_attack(attack)
 
-## Запуск вращения стрелки на Колесе Рун для выбранной атаки
-func _start_rune_wheel_attack(attack: AttackData) -> void:
-	if attack == null or _rune_wheel == null:
-		return
+## Единая точка входа для выполнения любой атаки (обычной без QTE или особой с QTE)
+func execute_attack(attack: AttackData) -> void:
+	if attack != null and (attack.is_special_attack or attack.qte_mode != AttackData.QTEMode.NONE):
+		_start_special_attack_qte(attack)
+	else:
+		_execute_basic_attack(attack)
+
+## Выполнение обычной атаки без QTE
+func _execute_basic_attack(attack: AttackData) -> void:
+	current_state = State.ACTION_RESOLUTION
+	_set_action_buttons_enabled(false)
+	_set_attack_selection_visible(false)
 	
+	var used_attack: AttackData = attack if attack != null else AttackData.new()
+	_active_attack = used_attack
+	
+	_animate_player_attack()
+	
+	var resist_modifier: float = enemy_data.get_damage_resistance_modifier(used_attack.category)
+	var damage: int = max(0, int(round(float(used_attack.base_damage) * resist_modifier)))
+	
+	var attack_msg: String = ""
+	if damage > 0:
+		attack_msg = "Вы наносите «%s»! %s получает %d урона." % [
+			used_attack.attack_name,
+			enemy_data.enemy_name,
+			damage
+		]
+	else:
+		attack_msg = "Вы используете «%s», но %s не получает урона." % [
+			used_attack.attack_name,
+			enemy_data.enemy_name
+		]
+	
+	await _apply_attack_damage_and_advance(damage, "[ АТАКА ]", attack_msg)
+
+## Анимация выпада героя при обычной атаке
+func _animate_player_attack() -> void:
+	if _player_visual == null:
+		return
+	var orig_pos: Vector2 = _player_visual.position
+	var tween: Tween = create_tween()
+	tween.tween_property(_player_visual, "position:x", orig_pos.x + 28.0, 0.09)\
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(_player_visual, "position:x", orig_pos.x, 0.14)\
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+
+## Общий переход в состояние QTE для особых атак
+func _begin_special_attack_qte_state(attack: AttackData, header: String, body: String) -> void:
 	_active_attack = attack
 	current_state = State.PLAYER_ATTACK_QTE
 	_set_action_buttons_enabled(false)
 	_set_attack_selection_visible(false)
 	
-	# Снимаем фокус с UI-кнопок, чтобы нажатие ПРОБЕЛА шло только в Колесо Рун
+	# Снимаем фокус с UI-кнопок, чтобы нажатия клавиш QTE не активировали кнопки меню
 	var focused: Control = get_viewport().gui_get_focus_owner()
 	if focused != null:
 		focused.release_focus()
 	
-	_update_dialogue_immediate(
-		"[ КОЛЕСО РУН: " + attack.attack_name.to_upper() + " ]",
+	_update_dialogue_immediate(header, body)
+
+## Применяет урон от атаки игрока, обновляет интерфейс и переходит к следующему этапу боя
+func _apply_attack_damage_and_advance(
+	damage: int,
+	header: String,
+	attack_msg: String,
+	flash_color: Color = Color.WHITE
+) -> void:
+	enemy_data.current_hp = max(0, enemy_data.current_hp - damage)
+	_update_bars()
+	
+	if damage > 0:
+		_shake_node(_enemy_sprite)
+		_flash_node(_enemy_sprite, flash_color)
+	
+	await _play_dialogue_sequence(header, attack_msg)
+	
+	if enemy_data.current_hp <= 0:
+		_resolve_victory_combat()
+	else:
+		_enter_enemy_turn()
+
+## Запуск QTE для будущих особых атак (отвязано от обычных атак)
+func _start_special_attack_qte(attack: AttackData) -> void:
+	if attack == null:
+		_execute_basic_attack(null)
+		return
+	
+	match attack.qte_mode:
+		AttackData.QTEMode.RUNE_WHEEL:
+			_start_rune_wheel_qte(attack)
+		AttackData.QTEMode.KEY_SEQUENCE:
+			_start_wasd_attack_qte(attack)
+		_:
+			_execute_basic_attack(attack)
+
+## Запуск Колеса Рун (спавнится временно только при особой атаке)
+func _start_rune_wheel_qte(attack: AttackData) -> void:
+	if attack == null:
+		return
+	
+	if _rune_wheel != null:
+		_rune_wheel.queue_free()
+		_rune_wheel = null
+	
+	_begin_special_attack_qte_state(
+		attack,
+		"[ ОСОБАЯ АТАКА: " + attack.attack_name.to_upper() + " ]",
 		"Стрелка вращается по часовой! Жмите [ПРОБЕЛ] на рунах (макс. 3). Приоритетные руны: " + attack.get_priority_runes_text() + "."
 	)
 	
-	_rune_wheel.start_wheel_attack(attack)
+	var wheel: RuneWheel = RuneWheel.new()
+	wheel.name = "SpecialAttackRuneWheel"
+	wheel.position = Vector2(320.0, 118.0)
+	wheel.wheel_radius = 84.0
+	wheel.z_index = 10
+	wheel.wheel_attack_finished.connect(_on_rune_wheel_attack_finished)
+	add_child(wheel)
+	_rune_wheel = wheel
+	wheel.start_wheel_attack(attack)
 
-## Обработка завершения вращения Колеса Рун и расчет урона
+## Обработка завершения вращения Колеса Рун и освобождение временного узла
 func _on_rune_wheel_attack_finished(selected_runes: Array[int], evaluation: Dictionary) -> void:
+	if _rune_wheel != null:
+		_rune_wheel.queue_free()
+		_rune_wheel = null
+	
 	current_state = State.ACTION_RESOLUTION
 	
 	var attack: AttackData = _active_attack
@@ -281,10 +379,7 @@ func _on_rune_wheel_attack_finished(selected_runes: Array[int], evaluation: Dict
 	
 	# Учет будущих уязвимостей и сопротивлений противника
 	var resist_modifier: float = enemy_data.get_damage_resistance_modifier(attack_cat, selected_runes)
-	var damage: int = int(round(float(base_damage) * rune_multiplier * resist_modifier))
-	
-	enemy_data.current_hp = max(0, enemy_data.current_hp - damage)
-	_update_bars()
+	var damage: int = max(0, int(round(float(base_damage) * rune_multiplier * resist_modifier)))
 	
 	var runes_str_arr: PackedStringArray = PackedStringArray()
 	for r: int in selected_runes:
@@ -294,24 +389,61 @@ func _on_rune_wheel_attack_finished(selected_runes: Array[int], evaluation: Dict
 			runes_str_arr.append("#" + str(r))
 	var runes_summary: String = ", ".join(runes_str_arr) if not runes_str_arr.is_empty() else "нет"
 	
+	var flash_color: Color = Color.WHITE
 	var attack_msg: String = ""
 	if damage > 0:
-		_shake_node(_enemy_sprite)
 		if priority_hits >= 2:
-			_flash_node(_enemy_sprite, Color(1.0, 0.9, 0.3, 1.0))
+			flash_color = Color(1.0, 0.9, 0.3, 1.0)
 			attack_msg = grade_text + "! Активированы руны: [" + runes_summary + "]. " + enemy_data.enemy_name + " получает " + str(damage) + " урона!"
 		else:
-			_flash_node(_enemy_sprite, Color.WHITE)
 			attack_msg = grade_text + ". Активированы руны: [" + runes_summary + "] (приоритетных: " + str(priority_hits) + "/" + str(total_hits) + "). Нанесено " + str(damage) + " урона."
 	else:
 		attack_msg = grade_text + "! Вы не активировали ни одной руны. Удар сорвался!"
 	
-	await _play_dialogue_sequence("[ РЕЗУЛЬТАТ РУННОЙ АТАКИ ]", attack_msg)
+	await _apply_attack_damage_and_advance(damage, "[ РЕЗУЛЬТАТ ОСОБОЙ АТАКИ ]", attack_msg, flash_color)
+
+## Запуск клавишного QTE (WASD) для будущих особых атак
+func _start_wasd_attack_qte(attack: AttackData) -> void:
+	if attack == null:
+		return
 	
-	if enemy_data.current_hp <= 0:
-		_resolve_victory_combat()
+	_begin_special_attack_qte_state(
+		attack,
+		"[ QTE ОСОБОЙ АТАКИ: " + attack.attack_name.to_upper() + " ]",
+		"Приготовьтесь! Нажимайте подсвеченные клавиши на клавиатуре (WASD)."
+	)
+	
+	var qte: AttackQTE = AttackQTE.new()
+	qte.name = "AttackQTEOverlay"
+	qte.qte_completed.connect(_on_attack_qte_completed)
+	add_child(qte)
+	qte.start_qte()
+
+## Обработка завершения клавишного QTE особой атаки
+func _on_attack_qte_completed(score_ratio: float, grade_text: String, damage_multiplier: float) -> void:
+	current_state = State.ACTION_RESOLUTION
+	
+	var attack: AttackData = _active_attack
+	var base_damage: int = attack.base_damage if attack != null else 20
+	var attack_cat: int = attack.category if attack != null else AttackData.AttackCategory.SLASH
+	var resist_modifier: float = enemy_data.get_damage_resistance_modifier(attack_cat)
+	var damage: int = max(0, int(round(float(base_damage) * damage_multiplier * resist_modifier)))
+	
+	var flash_color: Color = Color.WHITE
+	var attack_msg: String = ""
+	if damage > 0:
+		if damage_multiplier >= 1.2 or score_ratio >= 0.99:
+			flash_color = Color(1.0, 0.9, 0.3, 1.0)
+			attack_msg = "QTE: " + grade_text + "! Сокрушительная особая атака! " + enemy_data.enemy_name + " получает " + str(damage) + " крит. урона."
+		elif damage_multiplier >= 1.0:
+			attack_msg = "QTE: " + grade_text + "! Точный удар! " + enemy_data.enemy_name + " получает " + str(damage) + " урона."
+		else:
+			flash_color = Color(0.8, 0.8, 0.8, 1.0)
+			attack_msg = "QTE: " + grade_text + ". Удар нанесён неточно. " + enemy_data.enemy_name + " получает " + str(damage) + " урона."
 	else:
-		_enter_enemy_turn()
+		attack_msg = "QTE: " + grade_text + "! Вы сбились с темпа, и особая атака сорвалась. Урон не нанесён."
+	
+	await _apply_attack_damage_and_advance(damage, "[ РЕЗУЛЬТАТ ОСОБОЙ АТАКИ ]", attack_msg, flash_color)
 
 func _on_vow_pressed() -> void:
 	if current_state != State.PLAYER_TURN and current_state != State.ATTACK_SELECTION:
@@ -559,7 +691,7 @@ func _update_bars() -> void:
 	if _enemy_resolve_bar != null:
 		_enemy_resolve_bar.value = enemy_data.current_resolve
 
-## Построение интерфейса и боевой сцены с Колесом Рун на фоне
+## Построение интерфейса и боевой сцены (чистая арена без фонового колеса рун)
 func _build_battle_ui() -> void:
 	# 1. Задний фон арены
 	var bg: ColorRect = ColorRect.new()
@@ -589,15 +721,7 @@ func _build_battle_ui() -> void:
 	arena_border.editor_only = false
 	add_child(arena_border)
 	
-	# 2. КОЛЕСО РУН НА ФОНЕ БОЕВОЙ АРЕНЫ (в центре между героем и противником)
-	_rune_wheel = RuneWheel.new()
-	_rune_wheel.name = "BackgroundRuneWheel"
-	_rune_wheel.position = Vector2(320.0, 118.0)
-	_rune_wheel.wheel_radius = 84.0
-	_rune_wheel.wheel_attack_finished.connect(_on_rune_wheel_attack_finished)
-	add_child(_rune_wheel)
-	
-	# 3. Игрок слева
+	# 2. Игрок слева
 	var player_group: Node2D = Node2D.new()
 	player_group.name = "PlayerCombatant"
 	player_group.position = Vector2(105.0, 105.0)
@@ -637,7 +761,7 @@ func _build_battle_ui() -> void:
 	_player_hp_bar.show_percentage = false
 	player_group.add_child(_player_hp_bar)
 	
-	# 4. Враг справа
+	# 3. Враг справа
 	var enemy_group: Node2D = Node2D.new()
 	enemy_group.name = "EnemyCombatant"
 	enemy_group.position = Vector2(535.0, 95.0)
@@ -674,7 +798,7 @@ func _build_battle_ui() -> void:
 	_enemy_resolve_bar.modulate = Color(0.9, 0.85, 0.2, 1.0)
 	enemy_group.add_child(_enemy_resolve_bar)
 	
-	# 5. НИЖНЯЯ ПАНЕЛЬ ДЛЯ КНОПОК И ДИАЛОГОВ
+	# 4. НИЖНЯЯ ПАНЕЛЬ ДЛЯ КНОПОК И ДИАЛОГОВ
 	var bottom_panel: PanelContainer = PanelContainer.new()
 	bottom_panel.name = "BottomInteractionPanel"
 	bottom_panel.position = Vector2(20.0, 230.0)
@@ -759,19 +883,14 @@ func _build_battle_ui() -> void:
 	
 	for atk: AttackData in player_attacks:
 		var atk_btn: Button = Button.new()
-		atk_btn.text = "⚔ %s  (Приоритетные руны: %s)" % [atk.attack_name, atk.get_priority_runes_text()]
+		if atk.is_special_attack and atk.qte_mode == AttackData.QTEMode.RUNE_WHEEL:
+			atk_btn.text = "⚔ %s  (Приоритетные руны: %s)" % [atk.attack_name, atk.get_priority_runes_text()]
+		else:
+			atk_btn.text = "⚔ %s" % atk.attack_name
 		atk_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		atk_btn.add_theme_font_size_override("font_size", 11)
-		atk_btn.mouse_entered.connect(func() -> void:
-			if _rune_wheel != null:
-				_rune_wheel.set_preview_attack(atk)
-		)
-		atk_btn.focus_entered.connect(func() -> void:
-			if _rune_wheel != null:
-				_rune_wheel.set_preview_attack(atk)
-		)
 		atk_btn.pressed.connect(func() -> void:
-			_start_rune_wheel_attack(atk)
+			execute_attack(atk)
 		)
 		_attack_selection_box.add_child(atk_btn)
 	

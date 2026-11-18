@@ -12,6 +12,13 @@ enum AttackCategory {
 	RUNIC_STORM  ## Рунная буря
 }
 
+## Режим QTE (используется только для особых атак; базовые атаки проходят без QTE)
+enum QTEMode {
+	NONE,
+	RUNE_WHEEL,
+	KEY_SEQUENCE
+}
+
 ## Максимальное количество рун, которое можно активировать за одну атаку
 const MAX_RUNES_PER_ATTACK: int = 3
 ## Общее количество рун на колесе (пронумерованы от 1 до 10)
@@ -21,6 +28,8 @@ const TOTAL_WHEEL_RUNES: int = 10
 @export var attack_name: String = "Рубящий удар"
 @export var category: AttackCategory = AttackCategory.SLASH
 @export var base_damage: int = 20
+@export var is_special_attack: bool = false
+@export var qte_mode: QTEMode = QTEMode.NONE
 
 ## Приоритетные номера рун (от 1 до 10) для данной атаки
 @export var priority_runes: Array[int] = [1, 4, 8]
@@ -28,9 +37,9 @@ const TOTAL_WHEEL_RUNES: int = 10
 ## Задел под будущие зависимости и комбинации между рунами (например "1+4": 1.25)
 @export var rune_synergy_rules: Dictionary = {}
 
-@export_multiline var description: String = "Базовый удар клинком. Усиливается при попадании в приоритетные руны."
+@export_multiline var description: String = "Обычная атака без QTE."
 
-## Создает набор базовых атак героя с разными приоритетными рунами
+## Создает набор базовых атак героя (без QTE)
 static func create_default_player_attacks() -> Array[AttackData]:
 	var attacks: Array[AttackData] = []
 	
@@ -39,8 +48,10 @@ static func create_default_player_attacks() -> Array[AttackData]:
 	slash.attack_name = "Рубящий удар"
 	slash.category = AttackCategory.SLASH
 	slash.base_damage = 20
+	slash.is_special_attack = false
+	slash.qte_mode = QTEMode.NONE
 	slash.priority_runes = [1, 4, 8]
-	slash.description = "Широкий рубящий взмах. Приоритетные руны: 1, 4, 8."
+	slash.description = "Обычный широкий рубящий взмах без QTE."
 	attacks.append(slash)
 	
 	var pierce: AttackData = AttackData.new()
@@ -48,8 +59,10 @@ static func create_default_player_attacks() -> Array[AttackData]:
 	pierce.attack_name = "Колющий выпад"
 	pierce.category = AttackCategory.PIERCE
 	pierce.base_damage = 18
+	pierce.is_special_attack = false
+	pierce.qte_mode = QTEMode.NONE
 	pierce.priority_runes = [2, 5, 9]
-	pierce.description = "Точный пробивающий удар. Приоритетные руны: 2, 5, 9."
+	pierce.description = "Обычный точный пробивающий удар без QTE."
 	attacks.append(pierce)
 	
 	var runic: AttackData = AttackData.new()
@@ -57,8 +70,10 @@ static func create_default_player_attacks() -> Array[AttackData]:
 	runic.attack_name = "Рунный всполох"
 	runic.category = AttackCategory.RUNIC_FIRE
 	runic.base_damage = 22
+	runic.is_special_attack = false
+	runic.qte_mode = QTEMode.NONE
 	runic.priority_runes = [3, 6, 10]
-	runic.description = "Удар, напитанный силой древних знаков. Приоритетные руны: 3, 6, 10."
+	runic.description = "Обычный удар клинком с руническим следом без QTE."
 	attacks.append(runic)
 	
 	return attacks
