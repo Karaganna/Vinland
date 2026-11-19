@@ -33,3 +33,18 @@ func _refresh_ui() -> void:
 			_context.enemy_party,
 			_context.get_active_player()
 		)
+
+func _emit_transition(next_state_id: StringName) -> void:
+	transition_requested.emit(next_state_id)
+
+func _emit_log(message: String) -> void:
+	log_requested.emit(message)
+
+func _emit_qte(config: QTEConfigData, is_defensive: bool) -> void:
+	qte_requested.emit(config, is_defensive)
+
+func _emit_item_action(actor: Combatant, slot: ItemSlotStub) -> void:
+	item_action_requested.emit(actor, slot)
+
+func _emit_battle_end(victory: bool, by_vow: bool) -> void:
+	battle_end_requested.emit(victory, by_vow)

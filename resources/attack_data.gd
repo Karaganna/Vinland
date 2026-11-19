@@ -143,4 +143,3 @@ func evaluate_selected_runes(selected_runes: Array[int]) -> Dictionary:
 ## Заглушка под будущие зависимости между конкретными номерами рун
 func _evaluate_future_synergies(_unique_runes: Array[int]) -> float:
 	return 0.0
-

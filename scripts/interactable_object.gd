@@ -260,4 +260,3 @@ func _draw() -> void:
 	var rect: Rect2 = Rect2(-interaction_size / 2.0, interaction_size)
 	draw_rect(rect, Color(0.2, 0.85, 1.0, 0.25))
 	draw_rect(rect, Color(0.2, 0.85, 1.0, 0.85), false, 1.5)
-

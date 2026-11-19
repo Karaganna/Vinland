@@ -8,24 +8,45 @@ signal log_message_emitted(text: String)
 signal qte_requested(config: QTEConfigData, is_defensive: bool)
 
 @export var ui_presenter: BattleUIPresenter = null
+@export var rhythm_sync_audio_player: AudioStreamPlayer = null
 @export var auto_start_sandbox: bool = true
 @export var return_to_overworld_on_finish: bool = false
-@export_range(0.0, 1.0, 0.05) var qte_stub_fallback_accuracy: float = 0.75
 
 var context: BattleContext = BattleContext.new()
 
 var _states: Dictionary = {}
 var _current_state: BaseBattleState = null
 var _states_container: Node = null
+var _active_qte: BaseQTEMinigame = null
 
 func _ready() -> void:
-	if ui_presenter == null:
-		ui_presenter = get_node_or_null("BattleUIPresenter") as BattleUIPresenter
+	_ensure_ui_presenter()
 	context.ui = ui_presenter
 	_register_states()
 	
 	if auto_start_sandbox:
 		start_sandbox_battle()
+
+func _ensure_ui_presenter() -> void:
+	if ui_presenter != null:
+		return
+	ui_presenter = get_node_or_null("BattleUIPresenter") as BattleUIPresenter
+	if ui_presenter == null:
+		for child: Node in get_children():
+			if child is BattleUIPresenter:
+				ui_presenter = child as BattleUIPresenter
+				break
+			var nested: BattleUIPresenter = child.get_node_or_null("BattleUIPresenter") as BattleUIPresenter
+			if nested != null:
+				ui_presenter = nested
+				break
+	if ui_presenter == null and auto_start_sandbox:
+		var layer: CanvasLayer = CanvasLayer.new()
+		layer.name = "BattleUILayer"
+		add_child(layer)
+		ui_presenter = BattleUIPresenter.new()
+		ui_presenter.name = "BattleUIPresenter"
+		layer.add_child(ui_presenter)
 
 ## Запускает тестовый бой с ГГ и Молодым драконом из BattleSandboxFactory
 func start_sandbox_battle() -> void:
@@ -61,12 +82,52 @@ func execute_item_action(actor: Combatant, slot: ItemSlotStub = null) -> String:
 	_emit_log(used_msg)
 	return used_msg
 
-## Запрос запуска QTE (если внешний QTE-презентер Фазы 3 еще не подключен, использует безопасную заглушку)
+## Запускает соответствующую мини-игру QTE внутри qte_slot_container нижней панели
 func request_qte(config: QTEConfigData, is_defensive: bool) -> void:
-	if qte_requested.get_connections().size() > 0:
-		qte_requested.emit(config, is_defensive)
+	qte_requested.emit(config, is_defensive)
+	
+	if _active_qte != null and is_instance_valid(_active_qte):
+		_active_qte.queue_free()
+		_active_qte = null
+	
+	if config == null or config.qte_type == BattleTypes.QTEType.NONE:
+		complete_qte(1.0, "НОРМАЛЬНО")
 		return
-	call_deferred("complete_qte", qte_stub_fallback_accuracy, "ЗАГЛУШКА QTE")
+	
+	var minigame: BaseQTEMinigame = _create_qte_minigame(config.qte_type)
+	if minigame == null:
+		complete_qte(1.0, "НОРМАЛЬНО")
+		return
+	
+	_active_qte = minigame
+	if rhythm_sync_audio_player != null:
+		_active_qte.set_audio_sync_player(rhythm_sync_audio_player)
+	
+	var container: Control = ui_presenter.get_qte_container() if ui_presenter != null else null
+	if container != null:
+		ui_presenter.set_qte_active(true)
+		container.add_child(_active_qte)
+	else:
+		add_child(_active_qte)
+	
+	_active_qte.qte_finished.connect(_on_qte_minigame_finished)
+	_active_qte.start_qte(config)
+
+func _create_qte_minigame(qte_type: BattleTypes.QTEType) -> BaseQTEMinigame:
+	match qte_type:
+		BattleTypes.QTEType.PRECISION_BAR:
+			return PrecisionBarQTE.new()
+		BattleTypes.QTEType.CIRCULAR_SKILL_CHECK:
+			return CircularSkillCheckQTE.new()
+		BattleTypes.QTEType.RHYTHM_TRACK:
+			return RhythmTrackQTE.new()
+	return null
+
+func _on_qte_minigame_finished(accuracy: float, success_tier: String) -> void:
+	_active_qte = null
+	if ui_presenter != null:
+		ui_presenter.set_qte_active(false)
+	complete_qte(accuracy, success_tier)
 
 ## Передает результат завершенной мини-игры QTE активному состоянию FSM
 func complete_qte(accuracy: float, success_tier: String) -> void:
