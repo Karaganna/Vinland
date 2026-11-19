@@ -1,0 +1,188 @@
+# res://scripts/battle/states/player_select_state.gd
+class_name PlayerSelectState
+extends BaseBattleState
+
+## Выбор действия, умения и цели (включая части тела врага) активным бойцом отряда игрока
+enum SubMenuMode {
+	NONE,
+	SKILL_LIST,
+	TARGET_SELECT
+}
+
+var _sub_menu_mode: SubMenuMode = SubMenuMode.NONE
+var _is_listening_ui: bool = false
+
+func get_state_id() -> StringName:
+	return &"player_select"
+
+func enter() -> void:
+	if _context == null:
+		return
+	
+	_sub_menu_mode = SubMenuMode.NONE
+	_context.clear_pending_player_action()
+	
+	var actor: Combatant = _context.get_active_player()
+	if actor == null:
+		if _context.is_player_party_defeated():
+			_context.battle_victory = false
+			_context.battle_by_vow = false
+			_context.outcome_message = "Все герои пали в бою..."
+			transition_requested.emit(&"battle_end")
+			return
+		_context.reset_enemy_turn_cursor()
+		transition_requested.emit(&"enemy_turn")
+		return
+	
+	# Проверка статусов недееспособности (SLEEP / STAGGER)
+	if actor.is_incapacitated():
+		actor.resources.decay_rage_on_idle_or_block()
+		var status_text: String = "спит" if actor.has_status(BattleTypes.StatusType.SLEEP) else "ошеломлён"
+		log_requested.emit("%s %s и пропускает ход!" % [actor.display_name, status_text])
+		_refresh_ui()
+		_advance_player_or_go_enemy_turn()
+		return
+	
+	# Проверка статуса HYPNOSIS (случайная цель среди всех живых бойцов)
+	if actor.is_hypnotized():
+		var all_alive: Array[Combatant] = _context.get_all_alive_combatants()
+		if not all_alive.is_empty():
+			var random_target: Combatant = all_alive.pick_random()
+			_context.pending_action_type = BattleTypes.ActionType.ATTACK
+			_context.pending_skill = actor.basic_attack
+			_context.pending_target = random_target
+			_context.pending_target_part = null
+			log_requested.emit("%s под гипнозом атакует случайную цель (%s)!" % [actor.display_name, random_target.display_name])
+			transition_requested.emit(&"player_action")
+			return
+	
+	_connect_ui()
+	_refresh_ui()
+	if _context.ui != null:
+		_context.ui.hide_sub_menu()
+		_context.ui.set_action_menu_visible(true, actor)
+	log_requested.emit("[Ход %d] Выберите действие для: %s" % [_context.turn_number, actor.display_name])
+
+func exit() -> void:
+	_disconnect_ui()
+	_sub_menu_mode = SubMenuMode.NONE
+	if _context != null and _context.ui != null:
+		_context.ui.hide_sub_menu()
+		_context.ui.set_action_menu_visible(false)
+
+func _connect_ui() -> void:
+	if _context == null or _context.ui == null or _is_listening_ui:
+		return
+	var ui: BattleUIPresenter = _context.ui
+	ui.action_selected.connect(_on_action_selected)
+	ui.skill_selected.connect(_on_skill_selected)
+	ui.target_selected.connect(_on_target_selected)
+	ui.cancel_requested.connect(_on_cancel_requested)
+	_is_listening_ui = true
+
+func _disconnect_ui() -> void:
+	if _context == null or _context.ui == null or not _is_listening_ui:
+		return
+	var ui: BattleUIPresenter = _context.ui
+	if ui.action_selected.is_connected(_on_action_selected):
+		ui.action_selected.disconnect(_on_action_selected)
+	if ui.skill_selected.is_connected(_on_skill_selected):
+		ui.skill_selected.disconnect(_on_skill_selected)
+	if ui.target_selected.is_connected(_on_target_selected):
+		ui.target_selected.disconnect(_on_target_selected)
+	if ui.cancel_requested.is_connected(_on_cancel_requested):
+		ui.cancel_requested.disconnect(_on_cancel_requested)
+	_is_listening_ui = false
+
+func _on_action_selected(action_type: BattleTypes.ActionType) -> void:
+	var actor: Combatant = _context.get_active_player()
+	if actor == null:
+		return
+	
+	match action_type:
+		BattleTypes.ActionType.ATTACK:
+			_context.pending_action_type = BattleTypes.ActionType.ATTACK
+			_context.pending_skill = actor.basic_attack
+			_open_target_selection_or_execute(actor.basic_attack)
+		BattleTypes.ActionType.SKILL:
+			_context.pending_action_type = BattleTypes.ActionType.SKILL
+			_sub_menu_mode = SubMenuMode.SKILL_LIST
+			if _context.ui != null:
+				_context.ui.show_skill_list(actor)
+		BattleTypes.ActionType.BLOCK:
+			_context.pending_action_type = BattleTypes.ActionType.BLOCK
+			_context.pending_skill = null
+			transition_requested.emit(&"player_action")
+		BattleTypes.ActionType.ITEM:
+			item_action_requested.emit(actor, null)
+		BattleTypes.ActionType.ULTIMATE:
+			if actor.ultimate_skill == null or not actor.resources.can_use_ultimate(actor.ultimate_skill.min_tension_tier):
+				log_requested.emit("Шкала Напряжения еще не заполнена для Ульты!")
+				return
+			_context.pending_action_type = BattleTypes.ActionType.ULTIMATE
+			_context.pending_skill = actor.ultimate_skill
+			_open_target_selection_or_execute(actor.ultimate_skill)
+
+func _on_skill_selected(skill: SkillData) -> void:
+	if skill == null:
+		return
+	_context.pending_skill = skill
+	_open_target_selection_or_execute(skill)
+
+func _on_target_selected(target: Combatant, part: EnemyPartState) -> void:
+	_context.pending_target = target
+	_context.pending_target_part = part
+	transition_requested.emit(&"player_action")
+
+func _on_cancel_requested() -> void:
+	var actor: Combatant = _context.get_active_player()
+	if _sub_menu_mode == SubMenuMode.TARGET_SELECT and _context.pending_action_type == BattleTypes.ActionType.SKILL and actor != null:
+		_sub_menu_mode = SubMenuMode.SKILL_LIST
+		if _context.ui != null:
+			_context.ui.show_skill_list(actor)
+		return
+	
+	_sub_menu_mode = SubMenuMode.NONE
+	if _context.ui != null:
+		_context.ui.hide_sub_menu()
+		_context.ui.set_action_menu_visible(true, actor)
+
+func _open_target_selection_or_execute(skill: SkillData) -> void:
+	var actor: Combatant = _context.get_active_player()
+	if skill == null:
+		transition_requested.emit(&"player_action")
+		return
+	
+	if skill.target_side == BattleTypes.TargetSide.SELF:
+		_context.pending_target = actor
+		_context.pending_target_part = null
+		transition_requested.emit(&"player_action")
+		return
+	
+	if skill.target_side == BattleTypes.TargetSide.ALL_ENEMIES or skill.target_side == BattleTypes.TargetSide.ALL_ALLIES:
+		_context.pending_target = null
+		_context.pending_target_part = null
+		transition_requested.emit(&"player_action")
+		return
+	
+	var alive_enemies: Array[Combatant] = _context.get_alive_enemies()
+	if alive_enemies.is_empty():
+		transition_requested.emit(&"battle_end")
+		return
+	
+	if alive_enemies.size() == 1 and alive_enemies[0].get_targetable_parts().is_empty():
+		_context.pending_target = alive_enemies[0]
+		_context.pending_target_part = null
+		transition_requested.emit(&"player_action")
+		return
+	
+	_sub_menu_mode = SubMenuMode.TARGET_SELECT
+	if _context.ui != null:
+		_context.ui.show_target_and_part_selection(alive_enemies)
+
+func _advance_player_or_go_enemy_turn() -> void:
+	if _context.advance_to_next_alive_player():
+		transition_requested.emit(&"player_select")
+	else:
+		_context.reset_enemy_turn_cursor()
+		transition_requested.emit(&"enemy_turn")

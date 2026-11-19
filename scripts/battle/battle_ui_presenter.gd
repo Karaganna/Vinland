@@ -1,0 +1,302 @@
+# res://scripts/battle/battle_ui_presenter.gd
+class_name BattleUIPresenter
+extends Control
+
+## Сигналы интерфейса боя (строго снизу вверх)
+signal action_selected(action_type: BattleTypes.ActionType)
+signal skill_selected(skill: SkillData)
+signal target_selected(target: Combatant, part: EnemyPartState)
+signal cancel_requested()
+
+@export_group("Кнопки меню (5 действий)")
+@export var attack_button: Button = null
+@export var skill_button: Button = null
+@export var block_button: Button = null
+@export var item_button: Button = null
+@export var ultimate_button: Button = null
+
+@export_group("Контейнеры подменю и QTE")
+@export var action_menu_container: Control = null
+@export var sub_menu_container: VBoxContainer = null
+@export var qte_slot_container: Control = null
+
+@export_group("Статус игрока")
+@export var player_name_label: Label = null
+@export var player_hp_bar: ProgressBar = null
+@export var player_hp_label: Label = null
+@export var energy_bar: ProgressBar = null
+@export var mana_bar: ProgressBar = null
+@export var rage_bar: ProgressBar = null
+@export var tension_bar: ProgressBar = null
+@export var player_statuses_label: Label = null
+
+@export_group("Статус врага и телеграф")
+@export var enemy_name_label: Label = null
+@export var enemy_hp_bar: ProgressBar = null
+@export var enemy_hp_label: Label = null
+@export var enemy_statuses_label: Label = null
+@export var telegraph_banner_label: Label = null
+
+@export_group("Боевой лог")
+@export var combat_log_label: RichTextLabel = null
+@export var typewriter_duration: float = 0.25
+
+var _log_tween: Tween = null
+
+func _ready() -> void:
+	_bind_action_buttons()
+	if combat_log_label != null:
+		combat_log_label.bbcode_enabled = true
+	clear_telegraph_banner()
+	hide_sub_menu()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		if sub_menu_container != null and sub_menu_container.visible:
+			get_viewport().set_input_as_handled()
+			cancel_requested.emit()
+
+func _bind_action_buttons() -> void:
+	if attack_button != null and not attack_button.pressed.is_connected(_on_attack_pressed):
+		attack_button.pressed.connect(_on_attack_pressed)
+	if skill_button != null and not skill_button.pressed.is_connected(_on_skill_pressed):
+		skill_button.pressed.connect(_on_skill_pressed)
+	if block_button != null and not block_button.pressed.is_connected(_on_block_pressed):
+		block_button.pressed.connect(_on_block_pressed)
+	if item_button != null and not item_button.pressed.is_connected(_on_item_pressed):
+		item_button.pressed.connect(_on_item_pressed)
+	if ultimate_button != null and not ultimate_button.pressed.is_connected(_on_ultimate_pressed):
+		ultimate_button.pressed.connect(_on_ultimate_pressed)
+
+func _on_attack_pressed() -> void:
+	action_selected.emit(BattleTypes.ActionType.ATTACK)
+
+func _on_skill_pressed() -> void:
+	action_selected.emit(BattleTypes.ActionType.SKILL)
+
+func _on_block_pressed() -> void:
+	action_selected.emit(BattleTypes.ActionType.BLOCK)
+
+func _on_item_pressed() -> void:
+	action_selected.emit(BattleTypes.ActionType.ITEM)
+
+func _on_ultimate_pressed() -> void:
+	action_selected.emit(BattleTypes.ActionType.ULTIMATE)
+
+## Обновляет шкалы HP, ресурсов и статусов для активного героя и ведущего противника
+func refresh_combatants(
+	player_party: Array[Combatant],
+	enemy_party: Array[Combatant],
+	active_player: Combatant
+) -> void:
+	var hero: Combatant = active_player
+	if hero == null and not player_party.is_empty():
+		hero = player_party[0]
+	
+	if hero != null:
+		if player_name_label != null:
+			player_name_label.text = hero.display_name
+		_update_bar(player_hp_bar, hero.current_hp, hero.max_hp, true)
+		if player_hp_label != null:
+			player_hp_label.text = "HP: %d/%d" % [hero.current_hp, hero.max_hp]
+		_update_resource_bar(energy_bar, hero.resources, BattleTypes.ResourceType.ENERGY)
+		_update_resource_bar(mana_bar, hero.resources, BattleTypes.ResourceType.MANA)
+		_update_resource_bar(rage_bar, hero.resources, BattleTypes.ResourceType.RAGE)
+		_update_resource_bar(tension_bar, hero.resources, BattleTypes.ResourceType.TENSION)
+		if player_statuses_label != null:
+			player_statuses_label.text = _format_statuses(hero)
+	
+	var enemy: Combatant = _pick_display_enemy(enemy_party)
+	if enemy != null:
+		if enemy_name_label != null:
+			enemy_name_label.text = enemy.display_name
+		_update_bar(enemy_hp_bar, enemy.current_hp, enemy.max_hp, true)
+		if enemy_hp_label != null:
+			enemy_hp_label.text = "HP: %d/%d" % [enemy.current_hp, enemy.max_hp]
+		if enemy_statuses_label != null:
+			enemy_statuses_label.text = _format_statuses(enemy)
+		if enemy.is_telegraphing() and enemy.pending_telegraph_skill != null:
+			var warn: String = enemy.pending_telegraph_skill.telegraph_warning_text
+			if warn.is_empty():
+				warn = "%s готовит: %s" % [enemy.display_name, enemy.pending_telegraph_skill.skill_name]
+			show_telegraph_banner(warn)
+		else:
+			clear_telegraph_banner()
+
+## Показывает или скрывает основное меню из 5 кнопок с учетом доступности Ульты и Умений
+func set_action_menu_visible(is_visible: bool, active_hero: Combatant = null) -> void:
+	if action_menu_container != null:
+		action_menu_container.visible = is_visible
+	
+	var buttons: Array[Button] = [attack_button, skill_button, block_button, item_button, ultimate_button]
+	for btn: Button in buttons:
+		if btn != null:
+			btn.disabled = not is_visible
+	
+	if is_visible and active_hero != null:
+		if skill_button != null:
+			skill_button.disabled = active_hero.skills.is_empty()
+		if ultimate_button != null:
+			var can_ult: bool = (
+				active_hero.ultimate_skill != null
+				and active_hero.resources.can_use_ultimate(active_hero.ultimate_skill.min_tension_tier)
+			)
+			ultimate_button.disabled = not can_ult
+		if attack_button != null and attack_button.is_inside_tree():
+			attack_button.grab_focus()
+
+## Отображает список навыков выбранного бойца
+func show_skill_list(actor: Combatant) -> void:
+	if sub_menu_container == null or actor == null:
+		return
+	_clear_sub_menu()
+	sub_menu_container.visible = true
+	
+	for skill: SkillData in actor.skills:
+		if skill == null:
+			continue
+		var btn: Button = Button.new()
+		var cost_text: String = ""
+		if skill.resource_cost > 0:
+			cost_text = " (%d %s)" % [skill.resource_cost, BattleTypes.get_resource_display_name(skill.resource_type)]
+		elif skill.is_rage_to_heal():
+			cost_text = " (Ярость)"
+		btn.text = "%s%s" % [skill.skill_name, cost_text]
+		btn.tooltip_text = skill.description
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.disabled = not actor.resources.can_afford(skill.resource_type, skill.resource_cost)
+		var captured_skill: SkillData = skill
+		btn.pressed.connect(func() -> void:
+			skill_selected.emit(captured_skill)
+		)
+		sub_menu_container.add_child(btn)
+	
+	_add_cancel_button()
+
+## Отображает доступные цели и их открытые части тела (зоны атаки)
+func show_target_and_part_selection(enemies: Array[Combatant]) -> void:
+	if sub_menu_container == null:
+		return
+	_clear_sub_menu()
+	sub_menu_container.visible = true
+	
+	for enemy: Combatant in enemies:
+		if enemy == null or not enemy.is_alive():
+			continue
+		var targetable_parts: Array[EnemyPartState] = enemy.get_targetable_parts()
+		if targetable_parts.is_empty():
+			var btn: Button = Button.new()
+			btn.text = "%s (HP: %d/%d)" % [enemy.display_name, enemy.current_hp, enemy.max_hp]
+			btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			var captured_enemy: Combatant = enemy
+			btn.pressed.connect(func() -> void:
+				target_selected.emit(captured_enemy, null)
+			)
+			sub_menu_container.add_child(btn)
+		else:
+			for part: EnemyPartState in targetable_parts:
+				if part == null or part.data == null:
+					continue
+				var btn: Button = Button.new()
+				var weak_tag: String = " [УЯЗВИМА x%.1f]" % part.data.damage_multiplier if part.data.damage_multiplier > 1.0 else ""
+				btn.text = "%s — %s (HP: %d/%d, Броня: %d)%s" % [
+					enemy.display_name,
+					part.data.part_name,
+					part.current_hp,
+					part.data.max_hp,
+					part.data.armor,
+					weak_tag
+				]
+				btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+				var captured_enemy: Combatant = enemy
+				var captured_part: EnemyPartState = part
+				btn.pressed.connect(func() -> void:
+					target_selected.emit(captured_enemy, captured_part)
+				)
+				sub_menu_container.add_child(btn)
+	
+	_add_cancel_button()
+
+func hide_sub_menu() -> void:
+	if sub_menu_container != null:
+		_clear_sub_menu()
+		sub_menu_container.visible = false
+
+## Выводит текст боевого лога через RichTextLabel и visible_characters (безопасно для BBCode)
+func set_log_text(message: String) -> void:
+	if combat_log_label == null:
+		return
+	combat_log_label.bbcode_enabled = true
+	combat_log_label.text = message
+	if _log_tween != null and _log_tween.is_valid():
+		_log_tween.kill()
+	
+	var total_chars: int = combat_log_label.get_total_character_count()
+	if not is_inside_tree() or typewriter_duration <= 0.0 or total_chars <= 0:
+		combat_log_label.visible_characters = -1
+		return
+	
+	combat_log_label.visible_characters = 0
+	_log_tween = create_tween()
+	_log_tween.tween_property(combat_log_label, "visible_characters", total_chars, typewriter_duration)
+
+func show_telegraph_banner(warning: String) -> void:
+	if telegraph_banner_label == null:
+		return
+	telegraph_banner_label.text = "⚠ " + warning
+	telegraph_banner_label.visible = true
+
+func clear_telegraph_banner() -> void:
+	if telegraph_banner_label == null:
+		return
+	telegraph_banner_label.text = ""
+	telegraph_banner_label.visible = false
+
+func get_qte_container() -> Control:
+	return qte_slot_container if qte_slot_container != null else self
+
+func _clear_sub_menu() -> void:
+	if sub_menu_container == null:
+		return
+	for child: Node in sub_menu_container.get_children():
+		child.queue_free()
+
+func _add_cancel_button() -> void:
+	if sub_menu_container == null:
+		return
+	var back_btn: Button = Button.new()
+	back_btn.text = "← Назад"
+	back_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	back_btn.pressed.connect(func() -> void:
+		cancel_requested.emit()
+	)
+	sub_menu_container.add_child(back_btn)
+
+func _update_bar(bar: ProgressBar, current_val: int, max_val: int, show_bar: bool) -> void:
+	if bar == null:
+		return
+	bar.visible = show_bar
+	bar.max_value = float(maxi(1, max_val))
+	bar.value = float(clampi(current_val, 0, maxi(1, max_val)))
+
+func _update_resource_bar(bar: ProgressBar, pool: ResourcePool, res_type: BattleTypes.ResourceType) -> void:
+	if bar == null or pool == null:
+		return
+	var active: bool = pool.has_resource(res_type)
+	_update_bar(bar, pool.get_current(res_type), pool.get_max(res_type), active)
+
+func _pick_display_enemy(enemies: Array[Combatant]) -> Combatant:
+	for enemy: Combatant in enemies:
+		if enemy != null and enemy.is_alive():
+			return enemy
+	return enemies[0] if not enemies.is_empty() else null
+
+func _format_statuses(combatant: Combatant) -> String:
+	if combatant == null:
+		return ""
+	var parts: PackedStringArray = PackedStringArray()
+	if combatant.is_blocking:
+		parts.append("БЛОК")
+	for st: StatusEffectInstance in combatant.statuses:
+		parts.append("%s (%d)" % [BattleTypes.get_status_display_name(st.status_type), st.remaining_turns])
+	return ", ".join(parts)
