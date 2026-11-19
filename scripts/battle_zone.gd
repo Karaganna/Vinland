@@ -69,6 +69,9 @@ func _physics_process(delta: float) -> void:
 	if _player_in_zone == null or _is_encounter_active:
 		return
 	
+	if GameManager != null and GameManager.is_in_post_battle_grace():
+		return
+	
 	if _player_in_zone.is_movement_locked:
 		return
 	

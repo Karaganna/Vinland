@@ -139,16 +139,16 @@ func _setup_player_and_camera() -> void:
 		camera.editor_draw_limits = true
 	
 	# Помещаем героя у камина при старте, если нет сохраненной позиции
-	if GameManager.saved_player_position == Vector2.ZERO:
+	if not GameManager.has_saved_player_position:
 		player.global_position = default_spawn_position
 
 ## Восстанавливает позицию игрока и разблокирует управление при возврате
 func _handle_return_from_battle() -> void:
-	if GameManager.saved_player_position != Vector2.ZERO:
+	if GameManager.has_saved_player_position:
 		if player != null:
 			player.global_position = GameManager.saved_player_position
 			player.unlock_movement()
-		GameManager.saved_player_position = Vector2.ZERO
+		GameManager.clear_saved_player_position()
 
 ## Универсальный метод для добавления интерактивного объекта в локацию
 func register_interactable(

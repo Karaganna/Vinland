@@ -8,6 +8,8 @@ const PLAYER_SCENE_PATH: String = "res://scenes/Player.tscn"
 
 @export var default_spawn_position: Vector2 = Vector2(640.0, 140.0)
 @export var player_visual_scale: Vector2 = Vector2(3.0, 3.0)
+## Создавать ли невидимые границы по краям карты (подстраиваются под VillageGreenBackground)
+@export var enable_map_boundaries: bool = true
 ## Деревня по умолчанию является полностью безопасной локацией
 @export var enable_random_encounters: bool = false
 ## Временная красная зона для тестирования новой боевой системы с Колесом Рун
@@ -16,6 +18,7 @@ const PLAYER_SCENE_PATH: String = "res://scenes/Player.tscn"
 var player: Player = null
 
 func _ready() -> void:
+	GameManager.current_location_id = "village"
 	_setup_green_background()
 	_setup_boundaries()
 	_setup_return_to_house_zone()
@@ -25,6 +28,27 @@ func _ready() -> void:
 		_setup_village_battle_zone()
 	_setup_player_and_camera()
 	_handle_return_from_battle()
+
+func _transform_control_rect(ctrl: Control, xform: Transform2D) -> Rect2:
+	var p0: Vector2 = xform * Vector2.ZERO
+	var p1: Vector2 = xform * ctrl.size
+	return Rect2(p0.min(p1), (p1 - p0).abs())
+
+func _get_local_map_bounds() -> Rect2:
+	var bg: Control = get_node_or_null("VillageGreenBackground") as Control
+	if bg != null:
+		return _transform_control_rect(bg, bg.get_transform())
+	return Rect2(0.0, 0.0, VILLAGE_WIDTH, VILLAGE_HEIGHT)
+
+func _get_global_map_bounds() -> Rect2:
+	var bg: Control = get_node_or_null("VillageGreenBackground") as Control
+	if bg != null:
+		return _transform_control_rect(bg, bg.get_global_transform())
+	var local_rect: Rect2 = _get_local_map_bounds()
+	var xform: Transform2D = get_global_transform()
+	var p0: Vector2 = xform * local_rect.position
+	var p1: Vector2 = xform * local_rect.end
+	return Rect2(p0.min(p1), (p1 - p0).abs())
 
 func _setup_green_background() -> void:
 	var bg: ColorRect = get_node_or_null("VillageGreenBackground") as ColorRect
@@ -49,32 +73,34 @@ func _setup_green_background() -> void:
 		path_rect.z_index = -9
 		add_child(path_rect)
 	
+	var bounds_rect: Rect2 = _get_local_map_bounds()
 	var title_label: Label = get_node_or_null("VillagePlaceholderLabel") as Label
 	if title_label == null:
 		title_label = Label.new()
 		title_label.name = "VillagePlaceholderLabel"
 		title_label.text = "ДЕРЕВНЯ (безопасная локация — заглушка)"
-		title_label.position = Vector2(0.0, 16.0)
-		title_label.size = Vector2(VILLAGE_WIDTH, 32.0)
+		title_label.position = Vector2(bounds_rect.position.x, bounds_rect.position.y + 16.0)
+		title_label.size = Vector2(bounds_rect.size.x, 32.0)
 		title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		title_label.add_theme_font_size_override("font_size", 16)
 		title_label.add_theme_color_override("font_color", Color(0.95, 0.98, 0.9, 0.9))
 		add_child(title_label)
 
 func _setup_boundaries() -> void:
-	if get_node_or_null("VillageBoundaries") != null:
+	if not enable_map_boundaries or get_node_or_null("VillageBoundaries") != null:
 		return
 	
 	var bounds: StaticBody2D = StaticBody2D.new()
 	bounds.name = "VillageBoundaries"
 	add_child(bounds)
 	
+	var bounds_rect: Rect2 = _get_local_map_bounds()
 	var wall_thickness: float = 32.0
 	var rects: Array[Rect2] = [
-		Rect2(0.0, -wall_thickness, VILLAGE_WIDTH, wall_thickness),
-		Rect2(0.0, VILLAGE_HEIGHT, VILLAGE_WIDTH, wall_thickness),
-		Rect2(-wall_thickness, 0.0, wall_thickness, VILLAGE_HEIGHT),
-		Rect2(VILLAGE_WIDTH, 0.0, wall_thickness, VILLAGE_HEIGHT)
+		Rect2(bounds_rect.position.x, bounds_rect.position.y - wall_thickness, bounds_rect.size.x, wall_thickness),
+		Rect2(bounds_rect.position.x, bounds_rect.end.y, bounds_rect.size.x, wall_thickness),
+		Rect2(bounds_rect.position.x - wall_thickness, bounds_rect.position.y, wall_thickness, bounds_rect.size.y),
+		Rect2(bounds_rect.end.x, bounds_rect.position.y, wall_thickness, bounds_rect.size.y)
 	]
 	for i: int in range(rects.size()):
 		var r: Rect2 = rects[i]
@@ -97,12 +123,14 @@ func _setup_return_to_house_zone() -> void:
 		door_visual.z_index = -8
 		add_child(door_visual)
 	
+	var door_rect: Rect2 = _transform_control_rect(door_visual, door_visual.get_transform())
+	
 	var door_label: Label = get_node_or_null("HouseEntranceLabel") as Label
 	if door_label == null:
 		door_label = Label.new()
 		door_label.name = "HouseEntranceLabel"
 		door_label.text = "↑ Дом героя"
-		door_label.position = Vector2(570.0, 50.0)
+		door_label.position = Vector2(door_rect.get_center().x - 70.0, door_rect.end.y + 2.0)
 		door_label.size = Vector2(140.0, 20.0)
 		door_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		door_label.add_theme_font_size_override("font_size", 11)
@@ -114,8 +142,8 @@ func _setup_return_to_house_zone() -> void:
 		return_trigger = InteractableObject.create_interactable(
 			"return_home_door",
 			"Вход в дом",
-			Vector2(640.0, 32.0),
-			Vector2(100.0, 44.0),
+			door_rect.get_center(),
+			door_rect.size,
 			[],
 			"[E] Войти в дом"
 		)
@@ -141,6 +169,10 @@ func _setup_temp_test_battle_zone() -> void:
 		red_bg.color = Color(0.85, 0.12, 0.12, 0.55)
 		red_bg.z_index = -8
 		add_child(red_bg)
+	else:
+		var red_rect: Rect2 = _transform_control_rect(red_bg, red_bg.get_transform())
+		zone_pos = red_rect.get_center()
+		zone_sz = red_rect.size
 	
 	var zone_label: Label = get_node_or_null("TempBattleZoneLabel") as Label
 	if zone_label == null:
@@ -196,32 +228,30 @@ func _setup_player_and_camera() -> void:
 		camera.name = "Camera2D"
 		player.add_child(camera)
 	
-	camera.limit_left = 0
-	camera.limit_top = 0
-	camera.limit_right = int(VILLAGE_WIDTH)
-	camera.limit_bottom = int(VILLAGE_HEIGHT)
+	var global_bounds: Rect2 = _get_global_map_bounds()
+	camera.limit_left = int(floor(global_bounds.position.x))
+	camera.limit_top = int(floor(global_bounds.position.y))
+	camera.limit_right = int(ceil(global_bounds.end.x))
+	camera.limit_bottom = int(ceil(global_bounds.end.y))
 	camera.editor_draw_limits = true
 	
-	if GameManager.saved_player_position == Vector2.ZERO:
+	if not GameManager.has_saved_player_position:
 		player.global_position = default_spawn_position
 
 func _handle_return_from_battle() -> void:
-	if GameManager.saved_player_position != Vector2.ZERO:
+	if GameManager.has_saved_player_position:
 		if player != null:
-			var target_pos: Vector2 = GameManager.saved_player_position
-			# Если возвращаемся из боя внутри красной тестовой зоны (x > 720), сдвигаем чуть левее на безопасную тропу
-			if target_pos.x > 720.0:
-				target_pos.x = 680.0
-			player.global_position = target_pos
+			player.global_position = GameManager.saved_player_position
 			player.unlock_movement()
-		GameManager.saved_player_position = Vector2.ZERO
+		GameManager.clear_saved_player_position()
 
 func _setup_village_battle_zone() -> void:
+	var bounds_rect: Rect2 = _get_local_map_bounds()
 	var zone: BattleZone = BattleZone.new()
 	zone.name = "VillageOutskirtsBattleZone"
 	zone.zone_name = "Окрестности Деревни"
-	zone.position = Vector2(VILLAGE_WIDTH / 2.0, VILLAGE_HEIGHT / 2.0)
-	zone.zone_size = Vector2(VILLAGE_WIDTH, VILLAGE_HEIGHT)
+	zone.position = bounds_rect.get_center()
+	zone.zone_size = bounds_rect.size
 	zone.use_time_based_encounters = true
 	zone.min_encounter_seconds = 30.0
 	zone.max_encounter_seconds = 45.0
