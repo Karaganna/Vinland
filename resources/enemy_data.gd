@@ -29,6 +29,17 @@ extends Resource
 ## Коэффициент урона при попадании в сопротивление
 @export var resistance_multiplier: float = 0.6
 
+@export_group("Модульная боевая система")
+@export var enemy_id: String = "shadow_wanderer"
+@export var combat_stats: CombatStatsData = null
+@export var active_resources: Array[BattleTypes.ResourceType] = []
+@export var parts: Array[EnemyPartData] = []
+@export var basic_attack: SkillData = null
+@export var skills: Array[SkillData] = []
+@export var equipment_modifiers: Array[EquipmentModifierStub] = []
+@export var vulnerable_damage_types: Array[BattleTypes.DamageType] = []
+@export var resistant_damage_types: Array[BattleTypes.DamageType] = []
+
 ## Тексты диалогов и реакции в бою (разбиваются по 1 предложению на нажатие кнопки действия)
 @export_group("Диалоги")
 @export_multiline var dialogue_intro: String = "Перед вами возникает Теневой Скиталец! Его призрачный силуэт окутан холодным туманом. Он преграждает путь."
@@ -43,6 +54,15 @@ func get_damage_resistance_modifier(attack_category: int, _selected_runes: Array
 	if vulnerable_attack_categories.has(attack_category):
 		modifier *= vulnerability_multiplier
 	if resistant_attack_categories.has(attack_category):
+		modifier *= resistance_multiplier
+	return modifier
+
+## Вычисляет модификатор урона для модульной боевой системы по типу урона BattleTypes.DamageType
+func get_damage_type_modifier(damage_type: BattleTypes.DamageType) -> float:
+	var modifier: float = 1.0
+	if vulnerable_damage_types.has(damage_type):
+		modifier *= vulnerability_multiplier
+	if resistant_damage_types.has(damage_type):
 		modifier *= resistance_multiplier
 	return modifier
 
@@ -62,6 +82,15 @@ func clone() -> EnemyData:
 	copy.resistant_runes = resistant_runes.duplicate()
 	copy.vulnerability_multiplier = vulnerability_multiplier
 	copy.resistance_multiplier = resistance_multiplier
+	copy.enemy_id = enemy_id
+	copy.combat_stats = combat_stats.create_copy() if combat_stats != null else null
+	copy.active_resources = active_resources.duplicate()
+	copy.parts = parts.duplicate()
+	copy.basic_attack = basic_attack
+	copy.skills = skills.duplicate()
+	copy.equipment_modifiers = equipment_modifiers.duplicate()
+	copy.vulnerable_damage_types = vulnerable_damage_types.duplicate()
+	copy.resistant_damage_types = resistant_damage_types.duplicate()
 	copy.dialogue_intro = dialogue_intro
 	copy.dialogue_on_attack = dialogue_on_attack
 	copy.dialogue_on_vow = dialogue_on_vow
