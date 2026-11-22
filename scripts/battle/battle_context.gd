@@ -25,7 +25,8 @@ var enemy_pending_actor: Combatant = null
 var enemy_pending_skill: SkillData = null
 var enemy_pending_target: Combatant = null
 
-## Итоги боя
+## Итоги боя и режим запуска (оверворлд или автономная песочница F6)
+var is_overworld_battle: bool = false
 var battle_victory: bool = false
 var battle_by_vow: bool = false
 var outcome_message: String = ""

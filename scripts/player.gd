@@ -9,6 +9,12 @@ signal encounter_alert_finished
 @export var is_movement_locked: bool = false
 @export var walk_animation_fps: float = 8.0
 
+## Совместимое свойство блокировки (синхронизировано с is_movement_locked)
+var is_locked: bool = false: set = _set_is_locked, get = _get_is_locked
+
+## Флаг для координации порядка _ready() с контроллером локации
+var restored_position_on_ready: bool = false
+
 const WALK_SPRITES_BASE_PATH: String = "res://assets/sprites/player/walk"
 const WALK_FRAME_COUNT: int = 4
 
@@ -24,6 +30,20 @@ func _ready() -> void:
 	_setup_collision_bounds()
 	_setup_animated_sprite()
 	_setup_alert_marker()
+	_restore_return_position_if_needed()
+
+## Проверяет в GameManager возврат из боя, восстанавливает позицию и снимает блокировку
+func _restore_return_position_if_needed() -> void:
+	restored_position_on_ready = false
+	if GameManager == null:
+		return
+	if GameManager.has_return_position:
+		var return_data: Dictionary = GameManager.consume_return_position()
+		if bool(return_data.get("valid", false)):
+			if return_data.has("position") and return_data["position"] is Vector2:
+				global_position = return_data["position"] as Vector2
+			restored_position_on_ready = true
+			unlock_movement()
 
 func _setup_collision_bounds() -> void:
 	var col: CollisionShape2D = get_node_or_null("CollisionShape2D")
@@ -176,6 +196,15 @@ func lock_movement() -> void:
 	is_movement_locked = true
 	velocity = Vector2.ZERO
 	_update_walk_animation(Vector2.ZERO)
+
+func _get_is_locked() -> bool:
+	return is_movement_locked
+
+func _set_is_locked(value: bool) -> void:
+	if value:
+		lock_movement()
+	else:
+		unlock_movement()
 
 ## Процедурное создание пиксельного знака '!' над персонажем
 func _setup_alert_marker() -> void:

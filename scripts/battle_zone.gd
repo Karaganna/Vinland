@@ -24,6 +24,10 @@ signal encounter_triggered(enemy: EnemyData)
 ## Список возможных противников для этой зоны (если пуст, создается базовый)
 @export var possible_enemies: Array[EnemyData] = []
 
+@export_group("Переход в боевую сцену")
+## Сцена боевой системы для случайных столкновений
+@export var battle_scene_path: String = "res://scenes/battle_sandbox.tscn"
+
 @export_group("Визуализация на карте")
 ## Показывать ли полупрозрачную подсветку боевой зоны на карте
 @export var show_visual_marker: bool = true
@@ -119,8 +123,10 @@ func _start_encounter_sequence() -> void:
 		)
 
 func _on_alert_finished(enemy: EnemyData, player_pos: Vector2) -> void:
+	var current_scene: Node = get_tree().current_scene
+	var return_scene: String = current_scene.scene_file_path if current_scene != null else ""
 	# Вызываем глобальный менеджер игры для перехода в боевую локацию
-	GameManager.start_battle(enemy, player_pos)
+	GameManager.start_battle(enemy, return_scene, player_pos, "", battle_scene_path)
 
 func _select_enemy() -> EnemyData:
 	if not possible_enemies.is_empty():
@@ -129,6 +135,7 @@ func _select_enemy() -> EnemyData:
 	
 	# Если врагов не задано, создаем дефолтного
 	var default_enemy: EnemyData = EnemyData.new()
+	default_enemy.enemy_id = "wild_forest_spirit"
 	default_enemy.enemy_name = "Дикий Лесной Дух"
 	default_enemy.max_hp = 50
 	default_enemy.current_hp = 50

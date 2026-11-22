@@ -91,15 +91,20 @@ static func from_combatant_data(data: CombatantData, p_runtime_id: String = "") 
 	
 	return c
 
-## Создает runtime-бойца противника из ресурса EnemyData (с сохранением частей тела и Завета)
+## Создает runtime-бойца противника из ресурса EnemyData (с обратной совместимостью со старыми ресурсами)
 static func from_enemy_data(data: EnemyData, p_runtime_id: String = "") -> Combatant:
 	var c: Combatant = Combatant.new()
 	if data == null:
 		return c
 	
 	c.source_enemy_data = data
-	c.runtime_id = p_runtime_id if not p_runtime_id.is_empty() else data.enemy_id
-	c.display_name = data.enemy_name
+	var resolved_id: String = p_runtime_id.strip_edges()
+	if resolved_id.is_empty():
+		resolved_id = data.enemy_id.strip_edges()
+	if resolved_id.is_empty():
+		resolved_id = "enemy_legacy"
+	c.runtime_id = resolved_id
+	c.display_name = data.enemy_name if not data.enemy_name.strip_edges().is_empty() else "Противник"
 	c.is_player_controlled = false
 	c.sprite_color = data.sprite_color
 	c.equipment_modifiers = data.equipment_modifiers.duplicate()
@@ -108,18 +113,31 @@ static func from_enemy_data(data: EnemyData, p_runtime_id: String = "") -> Comba
 		c.stats = data.combat_stats.create_copy()
 	else:
 		c.stats = CombatStatsData.new()
-		c.stats.max_hp = data.max_hp
-		c.stats.attack = data.attack_power
+		c.stats.max_hp = maxi(1, data.max_hp)
+		c.stats.attack = maxi(1, data.attack_power)
+		c.stats.magic_power = maxi(1, data.attack_power)
+		c.stats.defense = maxi(1, roundi(float(data.attack_power) * 0.3))
+		c.stats.speed = 10
 	
 	c.max_hp = maxi(1, c.stats.max_hp + c._get_equipment_hp_bonus())
-	c.current_hp = c.max_hp
+	if data.combat_stats == null and data.max_hp > 0 and data.current_hp > 0 and data.current_hp < data.max_hp:
+		c.current_hp = clampi(data.current_hp, 1, c.max_hp)
+	else:
+		c.current_hp = c.max_hp
 	
 	c.max_resolve = maxi(1, data.max_resolve)
 	c.current_resolve = clampi(data.current_resolve, 0, c.max_resolve)
 	c.resolve_per_vow = data.resolve_per_vow
 	
-	c.basic_attack = data.basic_attack
-	c.skills = data.skills.duplicate()
+	if data.basic_attack != null:
+		c.basic_attack = data.basic_attack
+	else:
+		c.basic_attack = _create_legacy_basic_attack(data, c.runtime_id)
+	
+	c.skills.clear()
+	for sk: SkillData in data.skills:
+		if sk != null:
+			c.skills.append(sk)
 	
 	for res_type: BattleTypes.ResourceType in data.active_resources:
 		c.resources.configure_resource(res_type, 100, 50 if res_type == BattleTypes.ResourceType.ENERGY else 0, true)
@@ -129,6 +147,35 @@ static func from_enemy_data(data: EnemyData, p_runtime_id: String = "") -> Comba
 			c.parts.append(EnemyPartState.new(part_data))
 	
 	return c
+
+## Создает базовый навык атаки для старых EnemyData без настроенного SkillData
+static func _create_legacy_basic_attack(data: EnemyData, p_enemy_id: String) -> SkillData:
+	var fallback: SkillData = SkillData.new()
+	fallback.skill_id = "%s_legacy_attack" % p_enemy_id
+	fallback.skill_name = "Выпад врага"
+	fallback.description = "Базовая атака из классического ресурса EnemyData."
+	fallback.action_category = BattleTypes.ActionType.ATTACK
+	fallback.target_side = BattleTypes.TargetSide.ENEMY
+	fallback.resource_type = BattleTypes.ResourceType.ENERGY
+	fallback.resource_cost = 0
+	fallback.damage_type = BattleTypes.DamageType.PHYSICAL
+	var atk_power: int = data.attack_power if data != null else 10
+	fallback.base_power = maxi(4, roundi(float(atk_power) * 0.6))
+	fallback.power_multiplier = 1.0
+	fallback.blockability = BattleTypes.Blockability.FULL_100
+	fallback.requires_qte = false
+	return fallback
+
+## Создает снимок сохраняемого состояния бойца (HP и Мана) для переноса между боями
+func create_persistent_snapshot() -> Dictionary:
+	return {
+		"combatant_id": runtime_id,
+		"current_hp": current_hp,
+		"max_hp": max_hp,
+		"has_mana": resources.has_resource(BattleTypes.ResourceType.MANA),
+		"current_mana": resources.get_current(BattleTypes.ResourceType.MANA),
+		"max_mana": resources.get_max(BattleTypes.ResourceType.MANA)
+	}
 
 func is_alive() -> bool:
 	return current_hp > 0

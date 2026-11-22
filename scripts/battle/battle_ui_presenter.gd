@@ -7,6 +7,7 @@ signal action_selected(action_type: BattleTypes.ActionType)
 signal skill_selected(skill: SkillData)
 signal target_selected(target: Combatant, part: EnemyPartState)
 signal cancel_requested()
+signal battle_end_action_selected(action_id: String)
 
 @export_group("Автосборка UI")
 @export var auto_build_ui_if_missing: bool = true
@@ -54,6 +55,7 @@ signal cancel_requested()
 
 var _log_tween: Tween = null
 var _log_history: Array[String] = []
+var _is_battle_end_menu_open: bool = false
 
 func _ready() -> void:
 	if auto_build_ui_if_missing and (attack_button == null or combat_log_label == null or qte_slot_container == null):
@@ -78,6 +80,8 @@ func set_qte_active(is_active: bool) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
+		if _is_battle_end_menu_open:
+			return
 		if sub_menu_container != null and sub_menu_container.visible:
 			get_viewport().set_input_as_handled()
 			cancel_requested.emit()
@@ -255,11 +259,37 @@ func show_target_and_part_selection(enemies: Array[Combatant]) -> void:
 	_add_cancel_button()
 
 func hide_sub_menu() -> void:
+	_is_battle_end_menu_open = false
 	if sub_menu_container != null:
 		_clear_sub_menu()
 		sub_menu_container.visible = false
 	if sub_menu_scroll != null:
 		sub_menu_scroll.visible = false
+
+## Показывает кнопку подтверждения выхода в оверворлд или перезапуска песочницы
+func show_battle_end_options(is_overworld_battle: bool) -> void:
+	set_qte_active(false)
+	set_action_menu_visible(false)
+	if sub_menu_container == null:
+		return
+	_clear_sub_menu()
+	if sub_menu_scroll != null:
+		sub_menu_scroll.visible = true
+	sub_menu_container.visible = true
+	_is_battle_end_menu_open = true
+	
+	var action_btn: Button = Button.new()
+	var action_id: String = "return_to_world" if is_overworld_battle else "restart_sandbox"
+	action_btn.text = "Вернуться в мир" if is_overworld_battle else "Повторить бой (Sandbox)"
+	action_btn.custom_minimum_size = Vector2(220.0, 28.0)
+	action_btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	action_btn.add_theme_font_size_override("font_size", 11)
+	action_btn.pressed.connect(func() -> void:
+		battle_end_action_selected.emit(action_id)
+	)
+	sub_menu_container.add_child(action_btn)
+	if action_btn.is_inside_tree():
+		action_btn.call_deferred("grab_focus")
 
 ## Выводит текст боевого лога через RichTextLabel и visible_characters (безопасно для BBCode)
 func set_log_text(message: String) -> void:

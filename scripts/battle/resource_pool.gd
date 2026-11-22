@@ -115,6 +115,15 @@ func restore_resource(res_type: BattleTypes.ResourceType, amount: int) -> int:
 			_check_tension_tier_crossing(prev_val, next_val, max_val)
 	return gained
 
+## Устанавливает текущее значение активного ресурса (например, при восстановлении Маны между боями)
+func set_current(res_type: BattleTypes.ResourceType, value: int) -> void:
+	if not has_resource(res_type):
+		return
+	var max_val: int = get_max(res_type)
+	var next_val: int = clampi(value, 0, max_val)
+	_current_values[res_type] = next_val
+	resource_changed.emit(res_type, next_val, max_val)
+
 ## Возвращает множитель исходящего урона от порогов Энергии (70-100% -> x1.5; <=10% -> штраф)
 func get_energy_outgoing_multiplier() -> float:
 	if not has_resource(BattleTypes.ResourceType.ENERGY):

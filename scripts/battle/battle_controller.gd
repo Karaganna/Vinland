@@ -24,8 +24,9 @@ func _ready() -> void:
 	context.ui = ui_presenter
 	_register_states()
 	
-	if auto_start_sandbox:
-		start_sandbox_battle()
+	var has_pending: bool = GameManager != null and GameManager.has_pending_battle()
+	if has_pending or auto_start_sandbox:
+		_change_state(&"battle_start")
 
 func _ensure_ui_presenter() -> void:
 	if ui_presenter != null:
@@ -40,7 +41,8 @@ func _ensure_ui_presenter() -> void:
 			if nested != null:
 				ui_presenter = nested
 				break
-	if ui_presenter == null and auto_start_sandbox:
+	var has_pending: bool = GameManager != null and GameManager.has_pending_battle()
+	if ui_presenter == null and (auto_start_sandbox or has_pending):
 		var layer: CanvasLayer = CanvasLayer.new()
 		layer.name = "BattleUILayer"
 		add_child(layer)
@@ -50,6 +52,7 @@ func _ensure_ui_presenter() -> void:
 
 ## Запускает тестовый бой с ГГ и Молодым драконом из BattleSandboxFactory
 func start_sandbox_battle() -> void:
+	context.is_overworld_battle = false
 	var players: Array[Combatant] = BattleSandboxFactory.create_sandbox_player_party()
 	var enemies: Array[Combatant] = BattleSandboxFactory.create_sandbox_enemy_party()
 	start_battle(players, enemies)
@@ -203,7 +206,7 @@ func _on_state_item_action_requested(actor: Combatant, slot: ItemSlotStub) -> vo
 
 func _on_state_battle_end_requested(victory: bool, by_vow: bool) -> void:
 	battle_finished.emit(victory, by_vow)
-	if return_to_overworld_on_finish and GameManager != null:
+	if return_to_overworld_on_finish and not context.is_overworld_battle and GameManager != null:
 		GameManager.return_to_overworld(victory, by_vow)
 
 func _emit_log(message: String) -> void:

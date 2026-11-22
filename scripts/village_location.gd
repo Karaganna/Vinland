@@ -235,15 +235,23 @@ func _setup_player_and_camera() -> void:
 	camera.limit_bottom = int(ceil(global_bounds.end.y))
 	camera.editor_draw_limits = true
 	
-	if not GameManager.has_saved_player_position:
+	if not player.restored_position_on_ready and not GameManager.has_saved_player_position and not GameManager.has_return_position:
 		player.global_position = default_spawn_position
 
 func _handle_return_from_battle() -> void:
-	if GameManager.has_saved_player_position:
+	if GameManager.has_return_position:
+		var return_data: Dictionary = GameManager.consume_return_position()
+		if bool(return_data.get("valid", false)) and player != null:
+			if return_data.has("position") and return_data["position"] is Vector2:
+				player.global_position = return_data["position"] as Vector2
+			player.is_locked = false
+	elif GameManager.has_saved_player_position:
 		if player != null:
 			player.global_position = GameManager.saved_player_position
 			player.unlock_movement()
 		GameManager.clear_saved_player_position()
+	elif player != null and player.restored_position_on_ready:
+		player.is_locked = false
 
 func _setup_village_battle_zone() -> void:
 	var bounds_rect: Rect2 = _get_local_map_bounds()
