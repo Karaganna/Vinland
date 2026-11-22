@@ -31,6 +31,9 @@ var basic_attack: SkillData = null
 var skills: Array[SkillData] = []
 var ultimate_skill: SkillData = null
 
+var equipment_loadout: EquipmentLoadout = null
+var active_synergies: Array[WeaponSynergyData] = []
+
 var equipment_modifiers: Array[EquipmentModifierStub] = []
 var item_slots: Array[ItemSlotStub] = []
 var rune_slots: Array[RuneSlotStub] = []
@@ -51,7 +54,11 @@ func _init() -> void:
 	stats = CombatStatsData.new()
 
 ## Создает runtime-бойца для отряда игрока из иммутабельного ресурса CombatantData
-static func from_combatant_data(data: CombatantData, p_runtime_id: String = "") -> Combatant:
+static func from_combatant_data(
+	data: CombatantData,
+	p_runtime_id: String = "",
+	synergy_catalog: Array[WeaponSynergyData] = []
+) -> Combatant:
 	var c: Combatant = Combatant.new()
 	if data == null:
 		return c
@@ -62,6 +69,10 @@ static func from_combatant_data(data: CombatantData, p_runtime_id: String = "") 
 	c.sprite_color = data.sprite_color
 	c.stats = data.stats.create_copy() if data.stats != null else CombatStatsData.new()
 	
+	if data.equipment_loadout != null:
+		c.equipment_loadout = data.equipment_loadout.create_copy()
+		c.active_synergies = c.equipment_loadout.get_active_synergies(synergy_catalog)
+	
 	c.equipment_modifiers = data.equipment_modifiers.duplicate()
 	c.item_slots = data.item_slots.duplicate()
 	c.rune_slots = data.rune_slots.duplicate()
@@ -71,6 +82,19 @@ static func from_combatant_data(data: CombatantData, p_runtime_id: String = "") 
 	
 	c.basic_attack = data.basic_attack
 	c.skills = data.skills.duplicate()
+	if c.equipment_loadout != null:
+		var seen_skill_ids: Array[String] = []
+		for existing_sk: SkillData in c.skills:
+			if existing_sk != null and not existing_sk.skill_id.is_empty():
+				seen_skill_ids.append(existing_sk.skill_id)
+		for granted_sk: SkillData in c.equipment_loadout.get_granted_skills(synergy_catalog):
+			if granted_sk == null:
+				continue
+			if not granted_sk.skill_id.is_empty() and seen_skill_ids.has(granted_sk.skill_id):
+				continue
+			if not granted_sk.skill_id.is_empty():
+				seen_skill_ids.append(granted_sk.skill_id)
+			c.skills.append(granted_sk)
 	c.ultimate_skill = data.ultimate_skill
 	
 	c.resources.energy_low_threshold_ratio = data.energy_low_threshold_ratio
@@ -182,6 +206,9 @@ func is_alive() -> bool:
 
 func get_base_attack_without_rage() -> int:
 	var base_val: int = stats.attack
+	if equipment_loadout != null:
+		var bonuses: Dictionary = equipment_loadout.get_total_stat_bonuses()
+		base_val += int(bonuses.get("attack", 0))
 	for eq: EquipmentModifierStub in equipment_modifiers:
 		if eq != null:
 			base_val += eq.bonus_attack
@@ -191,10 +218,17 @@ func get_effective_attack() -> int:
 	return maxi(1, roundi(float(get_base_attack_without_rage()) * resources.get_rage_attack_multiplier()))
 
 func get_effective_magic() -> int:
-	return maxi(1, stats.magic_power)
+	var base_val: int = stats.magic_power
+	if equipment_loadout != null:
+		var bonuses: Dictionary = equipment_loadout.get_total_stat_bonuses()
+		base_val += int(bonuses.get("magic_power", 0))
+	return maxi(1, base_val)
 
 func get_effective_defense() -> int:
 	var base_val: int = stats.defense
+	if equipment_loadout != null:
+		var bonuses: Dictionary = equipment_loadout.get_total_stat_bonuses()
+		base_val += int(bonuses.get("defense", 0))
 	for eq: EquipmentModifierStub in equipment_modifiers:
 		if eq != null:
 			base_val += eq.bonus_defense
@@ -202,10 +236,37 @@ func get_effective_defense() -> int:
 
 func get_effective_speed() -> int:
 	var base_val: int = stats.speed
+	if equipment_loadout != null:
+		var bonuses: Dictionary = equipment_loadout.get_total_stat_bonuses()
+		base_val += int(bonuses.get("speed", 0))
 	for eq: EquipmentModifierStub in equipment_modifiers:
 		if eq != null:
 			base_val += eq.bonus_speed
 	return maxi(1, base_val + resources.get_rage_speed_bonus())
+
+func get_effective_crit_chance() -> float:
+	var chance: float = stats.crit_chance
+	if equipment_loadout != null:
+		var bonuses: Dictionary = equipment_loadout.get_total_stat_bonuses()
+		chance += float(bonuses.get("crit_chance", 0.0))
+	return clampf(chance, 0.0, 1.0)
+
+func get_effective_crit_multiplier() -> float:
+	var mult: float = stats.crit_multiplier
+	if equipment_loadout != null:
+		var bonuses: Dictionary = equipment_loadout.get_total_stat_bonuses()
+		mult += float(bonuses.get("crit_multiplier", 0.0))
+	return maxf(1.0, mult)
+
+func get_effective_qte_override() -> Dictionary:
+	if equipment_loadout != null:
+		return equipment_loadout.get_effective_qte_overrides()
+	return {"has_override": false}
+
+func has_passive_tag(tag: StringName) -> bool:
+	if equipment_loadout == null or tag.is_empty():
+		return false
+	return equipment_loadout.get_passive_tags().has(tag)
 
 ## Переводит бойца в стойку блока: восстанавливает Энергию и снижает Ярость
 func enter_block_stance(energy_gain: int = -1) -> int:
@@ -423,6 +484,9 @@ func get_damage_type_multiplier(damage_type: BattleTypes.DamageType) -> float:
 
 func _get_equipment_hp_bonus() -> int:
 	var total: int = 0
+	if equipment_loadout != null:
+		var bonuses: Dictionary = equipment_loadout.get_total_stat_bonuses()
+		total += int(bonuses.get("max_hp", 0))
 	for eq: EquipmentModifierStub in equipment_modifiers:
 		if eq != null:
 			total += eq.bonus_max_hp

@@ -2,10 +2,11 @@
 class_name PlayerSelectState
 extends BaseBattleState
 
-## Выбор действия, умения и цели (включая части тела врага) активным бойцом отряда игрока
+## Выбор действия, умения, расходника и цели (включая части тела врага) активным бойцом отряда игрока
 enum SubMenuMode {
 	NONE,
 	SKILL_LIST,
+	ITEM_LIST,
 	TARGET_SELECT
 }
 
@@ -28,17 +29,17 @@ func enter() -> void:
 			_context.battle_victory = false
 			_context.battle_by_vow = false
 			_context.outcome_message = "Все герои пали в бою..."
-			transition_requested.emit(&"battle_end")
+			_emit_transition(&"battle_end")
 			return
 		_context.reset_enemy_turn_cursor()
-		transition_requested.emit(&"enemy_turn")
+		_emit_transition(&"enemy_turn")
 		return
 	
 	# Проверка статусов недееспособности (SLEEP / STAGGER)
 	if actor.is_incapacitated():
 		actor.resources.decay_rage_on_idle_or_block()
 		var status_text: String = "спит" if actor.has_status(BattleTypes.StatusType.SLEEP) else "ошеломлён"
-		log_requested.emit("%s %s и пропускает ход!" % [actor.display_name, status_text])
+		_emit_log("%s %s и пропускает ход!" % [actor.display_name, status_text])
 		_refresh_ui()
 		_advance_player_or_go_enemy_turn()
 		return
@@ -52,8 +53,8 @@ func enter() -> void:
 			_context.pending_skill = actor.basic_attack
 			_context.pending_target = random_target
 			_context.pending_target_part = null
-			log_requested.emit("%s под гипнозом атакует случайную цель (%s)!" % [actor.display_name, random_target.display_name])
-			transition_requested.emit(&"player_action")
+			_emit_log("%s под гипнозом атакует случайную цель (%s)!" % [actor.display_name, random_target.display_name])
+			_emit_transition(&"player_action")
 			return
 	
 	_connect_ui()
@@ -61,7 +62,7 @@ func enter() -> void:
 	if _context.ui != null:
 		_context.ui.hide_sub_menu()
 		_context.ui.set_action_menu_visible(true, actor)
-	log_requested.emit("[Ход %d] Выберите действие для: %s" % [_context.turn_number, actor.display_name])
+	_emit_log("[Ход %d] Выберите действие для: %s" % [_context.turn_number, actor.display_name])
 
 func exit() -> void:
 	_disconnect_ui()
@@ -76,6 +77,7 @@ func _connect_ui() -> void:
 	var ui: BattleUIPresenter = _context.ui
 	ui.action_selected.connect(_on_action_selected)
 	ui.skill_selected.connect(_on_skill_selected)
+	ui.item_selected.connect(_on_item_selected)
 	ui.target_selected.connect(_on_target_selected)
 	ui.cancel_requested.connect(_on_cancel_requested)
 	_is_listening_ui = true
@@ -88,6 +90,8 @@ func _disconnect_ui() -> void:
 		ui.action_selected.disconnect(_on_action_selected)
 	if ui.skill_selected.is_connected(_on_skill_selected):
 		ui.skill_selected.disconnect(_on_skill_selected)
+	if ui.item_selected.is_connected(_on_item_selected):
+		ui.item_selected.disconnect(_on_item_selected)
 	if ui.target_selected.is_connected(_on_target_selected):
 		ui.target_selected.disconnect(_on_target_selected)
 	if ui.cancel_requested.is_connected(_on_cancel_requested):
@@ -112,12 +116,23 @@ func _on_action_selected(action_type: BattleTypes.ActionType) -> void:
 		BattleTypes.ActionType.BLOCK:
 			_context.pending_action_type = BattleTypes.ActionType.BLOCK
 			_context.pending_skill = null
-			transition_requested.emit(&"player_action")
+			_emit_transition(&"player_action")
 		BattleTypes.ActionType.ITEM:
-			item_action_requested.emit(actor, null)
+			if GameManager == null:
+				_emit_log("Инвентарь недоступен.")
+				return
+			GameManager.ensure_inventory_initialized()
+			var entries: Array[Dictionary] = GameManager.inventory.get_consumables(true, false)
+			if entries.is_empty():
+				_emit_log("В инвентаре нет доступных расходников.")
+				return
+			_context.pending_action_type = BattleTypes.ActionType.ITEM
+			_sub_menu_mode = SubMenuMode.ITEM_LIST
+			if _context.ui != null:
+				_context.ui.show_item_list(entries)
 		BattleTypes.ActionType.ULTIMATE:
 			if actor.ultimate_skill == null or not actor.resources.can_use_ultimate(actor.ultimate_skill.min_tension_tier):
-				log_requested.emit("Шкала Напряжения еще не заполнена для Ульты!")
+				_emit_log("Шкала Напряжения еще не заполнена для Ульты!")
 				return
 			_context.pending_action_type = BattleTypes.ActionType.ULTIMATE
 			_context.pending_skill = actor.ultimate_skill
@@ -129,10 +144,21 @@ func _on_skill_selected(skill: SkillData) -> void:
 	_context.pending_skill = skill
 	_open_target_selection_or_execute(skill)
 
+func _on_item_selected(item: ConsumableItemData) -> void:
+	if item == null:
+		return
+	var actor: Combatant = _context.get_active_player()
+	_context.pending_action_type = BattleTypes.ActionType.ITEM
+	_context.pending_consumable = item
+	_context.pending_skill = null
+	_context.pending_target = actor
+	_context.pending_target_part = null
+	_emit_transition(&"player_action")
+
 func _on_target_selected(target: Combatant, part: EnemyPartState) -> void:
 	_context.pending_target = target
 	_context.pending_target_part = part
-	transition_requested.emit(&"player_action")
+	_emit_transition(&"player_action")
 
 func _on_cancel_requested() -> void:
 	var actor: Combatant = _context.get_active_player()
@@ -150,30 +176,30 @@ func _on_cancel_requested() -> void:
 func _open_target_selection_or_execute(skill: SkillData) -> void:
 	var actor: Combatant = _context.get_active_player()
 	if skill == null:
-		transition_requested.emit(&"player_action")
+		_emit_transition(&"player_action")
 		return
 	
 	if skill.target_side == BattleTypes.TargetSide.SELF:
 		_context.pending_target = actor
 		_context.pending_target_part = null
-		transition_requested.emit(&"player_action")
+		_emit_transition(&"player_action")
 		return
 	
 	if skill.target_side == BattleTypes.TargetSide.ALL_ENEMIES or skill.target_side == BattleTypes.TargetSide.ALL_ALLIES:
 		_context.pending_target = null
 		_context.pending_target_part = null
-		transition_requested.emit(&"player_action")
+		_emit_transition(&"player_action")
 		return
 	
 	var alive_enemies: Array[Combatant] = _context.get_alive_enemies()
 	if alive_enemies.is_empty():
-		transition_requested.emit(&"battle_end")
+		_emit_transition(&"battle_end")
 		return
 	
 	if alive_enemies.size() == 1 and alive_enemies[0].get_targetable_parts().is_empty():
 		_context.pending_target = alive_enemies[0]
 		_context.pending_target_part = null
-		transition_requested.emit(&"player_action")
+		_emit_transition(&"player_action")
 		return
 	
 	_sub_menu_mode = SubMenuMode.TARGET_SELECT
@@ -182,7 +208,7 @@ func _open_target_selection_or_execute(skill: SkillData) -> void:
 
 func _advance_player_or_go_enemy_turn() -> void:
 	if _context.advance_to_next_alive_player():
-		transition_requested.emit(&"player_select")
+		_emit_transition(&"player_select")
 	else:
 		_context.reset_enemy_turn_cursor()
-		transition_requested.emit(&"enemy_turn")
+		_emit_transition(&"enemy_turn")

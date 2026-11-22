@@ -5,6 +5,7 @@ extends Control
 ## Сигналы интерфейса боя (строго снизу вверх)
 signal action_selected(action_type: BattleTypes.ActionType)
 signal skill_selected(skill: SkillData)
+signal item_selected(item: ConsumableItemData)
 signal target_selected(target: Combatant, part: EnemyPartState)
 signal cancel_requested()
 signal battle_end_action_selected(action_id: String)
@@ -205,6 +206,34 @@ func show_skill_list(actor: Combatant) -> void:
 		var captured_skill: SkillData = skill
 		btn.pressed.connect(func() -> void:
 			skill_selected.emit(captured_skill)
+		)
+		sub_menu_container.add_child(btn)
+	
+	_add_cancel_button()
+
+## Отображает список доступных боевых расходников из инвентаря с количеством и эффектом
+func show_item_list(entries: Array[Dictionary]) -> void:
+	if sub_menu_container == null:
+		return
+	_is_battle_end_menu_open = false
+	_clear_sub_menu()
+	if sub_menu_scroll != null:
+		sub_menu_scroll.visible = true
+	sub_menu_container.visible = true
+	
+	for entry: Dictionary in entries:
+		var cons: ConsumableItemData = entry.get("item", null) as ConsumableItemData
+		var cnt: int = int(entry.get("count", 0))
+		if cons == null or cnt <= 0:
+			continue
+		var btn: Button = Button.new()
+		btn.text = "%s x%d — %s" % [cons.display_name, cnt, cons.get_effect_summary()]
+		btn.tooltip_text = cons.description
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.add_theme_font_size_override("font_size", 10)
+		var captured_item: ConsumableItemData = cons
+		btn.pressed.connect(func() -> void:
+			item_selected.emit(captured_item)
 		)
 		sub_menu_container.add_child(btn)
 	

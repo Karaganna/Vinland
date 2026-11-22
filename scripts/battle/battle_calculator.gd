@@ -7,11 +7,12 @@ const DEFAULT_MISS_THRESHOLD: float = 0.30
 const DEFAULT_WEAK_THRESHOLD: float = 0.60
 const DEFAULT_PERFECT_THRESHOLD: float = 0.90
 
-## Оценивает множитель результата QTE с учетом переопределений из экипировки или конфигурации навыка
+## Оценивает множитель результата QTE с учетом переопределений из экипировки, EquipmentLoadout или навыка
 static func evaluate_qte_multiplier(
 	accuracy: float,
 	config: QTEConfigData,
-	equipment_list: Array[EquipmentModifierStub] = []
+	equipment_list: Array[EquipmentModifierStub] = [],
+	loadout_qte_override: Dictionary = {}
 ) -> Dictionary:
 	var acc: float = clampf(accuracy, 0.0, 1.0)
 	var miss_t: float = DEFAULT_MISS_THRESHOLD
@@ -33,30 +34,42 @@ static func evaluate_qte_multiplier(
 			weak_t = config.weak_threshold
 			perfect_t = config.perfect_threshold
 	
-	# Экипировка/оружие может переопределять пороги (например, "промах < 0.5, крит >= 0.9")
+	# Legacy-заглушки экипировки
 	for eq: EquipmentModifierStub in equipment_list:
 		if eq != null and eq.override_qte_thresholds:
 			miss_t = eq.qte_miss_threshold
 			weak_t = eq.qte_weak_threshold
 			perfect_t = eq.qte_perfect_threshold
 	
+	# Новая система экипировки (EquipmentLoadout): тяжелое оружие и аксессуары точности
+	if bool(loadout_qte_override.get("has_override", false)):
+		if bool(loadout_qte_override.get("use_absolute", false)):
+			miss_t = float(loadout_qte_override.get("miss_threshold", miss_t))
+			weak_t = float(loadout_qte_override.get("weak_threshold", weak_t))
+			perfect_t = float(loadout_qte_override.get("perfect_threshold", perfect_t))
+		miss_t = clampf(miss_t + float(loadout_qte_override.get("miss_delta", 0.0)), 0.0, 0.95)
+		perfect_t = clampf(perfect_t + float(loadout_qte_override.get("perfect_delta", 0.0)), 0.05, 1.0)
+	
 	weak_t = maxf(miss_t, weak_t)
 	perfect_t = maxf(weak_t, perfect_t)
 	
+	var guaranteed_crit: bool = bool(loadout_qte_override.get("guaranteed_crit_on_perfect", false))
+	
 	if acc < miss_t:
-		return {"multiplier": miss_mult, "tier": "ПРОМАХ"}
+		return {"multiplier": miss_mult, "tier": "ПРОМАХ", "guaranteed_crit": false}
 	if acc <= weak_t:
-		return {"multiplier": weak_mult, "tier": "СЛАБО"}
+		return {"multiplier": weak_mult, "tier": "СЛАБО", "guaranteed_crit": false}
 	if acc >= perfect_t:
-		return {"multiplier": perfect_mult, "tier": "ИДЕАЛЬНО"}
-	return {"multiplier": normal_mult, "tier": "НОРМАЛЬНО"}
+		return {"multiplier": perfect_mult, "tier": "ИДЕАЛЬНО", "guaranteed_crit": guaranteed_crit}
+	return {"multiplier": normal_mult, "tier": "НОРМАЛЬНО", "guaranteed_crit": false}
 
 ## Расчет градиентного блока (100/80/60/40/20/0%) и симметричного пробития GUARD_BREAK
 static func calculate_block_mitigation(
 	skill: SkillData,
 	target: Combatant,
 	defense_qte_multiplier: float = 1.0,
-	has_defense_qte: bool = false
+	has_defense_qte: bool = false,
+	attacker: Combatant = null
 ) -> Dictionary:
 	if skill == null or target == null:
 		return {"block_ratio": 0.0, "was_blocked": false, "guard_broken": false, "guard_break_bonus": 1.0}
@@ -90,7 +103,8 @@ static func calculate_block_mitigation(
 	
 	var guard_broken: bool = false
 	var guard_break_bonus: float = 1.0
-	if skill.is_guard_break() and (target.is_blocking or effective_block_ratio > 0.0):
+	var attacker_breaks_guard: bool = skill.is_guard_break() or (attacker != null and attacker.has_passive_tag(&"GUARD_BREAK"))
+	if attacker_breaks_guard and (target.is_blocking or effective_block_ratio > 0.0):
 		guard_broken = true
 		effective_block_ratio *= (1.0 - clampf(skill.guard_break_ignore_ratio, 0.0, 1.0))
 		if target.is_blocking:
@@ -115,7 +129,8 @@ static func calculate_damage(
 	qte_multiplier: float = 1.0,
 	defense_qte_multiplier: float = 1.0,
 	tension_tier: BattleTypes.TensionTier = BattleTypes.TensionTier.LOCKED,
-	has_defense_qte: bool = false
+	has_defense_qte: bool = false,
+	force_crit: bool = false
 ) -> Dictionary:
 	if attacker == null or target == null or skill == null:
 		return {"final_damage": 0, "was_blocked": false, "block_ratio": 0.0, "guard_broken": false, "is_crit": false}
@@ -172,22 +187,24 @@ static func calculate_damage(
 	# Проверка NO_GUARD на цели (повышенный входящий урон и/или гарантированный крит)
 	var is_crit: bool = false
 	var no_guard_triggered: bool = false
+	var eff_crit_chance: float = attacker.get_effective_crit_chance()
+	var eff_crit_mult: float = attacker.get_effective_crit_multiplier()
 	var no_guard_status: StatusEffectInstance = target.get_no_guard_status()
 	if no_guard_status != null:
 		no_guard_triggered = true
 		mitigated *= maxf(1.0, no_guard_status.magnitude)
-		if no_guard_status.guaranteed_crit_against:
+		if no_guard_status.guaranteed_crit_against or (force_crit and raw_power > 0.0):
 			is_crit = true
-			mitigated *= attacker.stats.crit_multiplier
-	elif raw_power > 0.0 and randf() < attacker.stats.crit_chance:
+			mitigated *= eff_crit_mult
+	elif raw_power > 0.0 and (force_crit or randf() < eff_crit_chance):
 		is_crit = true
-		mitigated *= attacker.stats.crit_multiplier
+		mitigated *= eff_crit_mult
 	
 	# Штраф входящего урона при истощении Энергии цели
 	mitigated *= target.resources.get_energy_incoming_multiplier()
 	
-	# Градиентный блок и симметричный GUARD_BREAK
-	var block_info: Dictionary = calculate_block_mitigation(skill, target, defense_qte_multiplier, has_defense_qte)
+	# Градиентный блок и симметричный GUARD_BREAK (включая тег от экипировки)
+	var block_info: Dictionary = calculate_block_mitigation(skill, target, defense_qte_multiplier, has_defense_qte, attacker)
 	var block_ratio: float = float(block_info.get("block_ratio", 0.0))
 	var guard_break_bonus: float = float(block_info.get("guard_break_bonus", 1.0))
 	

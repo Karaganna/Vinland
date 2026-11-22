@@ -18,6 +18,7 @@ const LOCATION_TEXTURE_PATH: String = "res://assets/locations/home.png"
 @export var enable_random_encounters: bool = false
 
 @onready var player: Player = $Player
+var _inventory_overlay: InventoryMenuOverlay = null
 
 ## Прямоугольники коллизий стен и мебели в доме (1280x783)
 const WALL_RECTS: Array[Rect2] = [
@@ -55,6 +56,7 @@ func _ready() -> void:
 	_setup_invisible_walls()
 	_setup_player_and_camera()
 	_handle_return_from_battle()
+	_setup_inventory_overlay()
 	_setup_house_interactables()
 	_setup_exit_to_village()
 	if enable_random_encounters:
@@ -157,6 +159,14 @@ func _handle_return_from_battle() -> void:
 		GameManager.clear_saved_player_position()
 	elif player != null and player.restored_position_on_ready:
 		player.is_locked = false
+
+func _setup_inventory_overlay() -> void:
+	_inventory_overlay = get_node_or_null("InventoryMenuOverlay") as InventoryMenuOverlay
+	if _inventory_overlay == null:
+		_inventory_overlay = InventoryMenuOverlay.new()
+		_inventory_overlay.name = "InventoryMenuOverlay"
+		add_child(_inventory_overlay)
+	_inventory_overlay.bind_player(player)
 
 ## Универсальный метод для добавления интерактивного объекта в локацию
 func register_interactable(

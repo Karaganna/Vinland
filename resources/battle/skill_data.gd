@@ -18,6 +18,8 @@ extends Resource
 @export var damage_type: BattleTypes.DamageType = BattleTypes.DamageType.PHYSICAL
 @export var base_power: int = 10
 @export var power_multiplier: float = 1.0
+@export_range(1, 5, 1) var hit_count: int = 1
+@export var grants_block_stance: bool = false
 @export var blockability: BattleTypes.Blockability = BattleTypes.Blockability.FULL_100
 @export var tags: Array[BattleTypes.SkillTag] = []
 

@@ -198,13 +198,9 @@ static func create_sandbox_hero() -> CombatantData:
 	ult.qte_config = ult_qte
 	hero.ultimate_skill = ult
 	
-	# Заглушки экипировки и рун
-	var weapon_stub: EquipmentModifierStub = EquipmentModifierStub.new()
-	weapon_stub.slot_id = "weapon"
-	weapon_stub.equipment_name = "Стальной клинок (заглушка)"
-	weapon_stub.bonus_attack = 2
-	var eq_list: Array[EquipmentModifierStub] = [weapon_stub]
-	hero.equipment_modifiers = eq_list
+	# Стартовый набор 5 слотов экипировки (Копьё + Щит + Кольчуга морехода) и заглушка рун
+	hero.equipment_loadout = InventorySandboxFactory.create_default_hero_loadout()
+	hero.equipment_modifiers.clear()
 	
 	var rune_stub: RuneSlotStub = RuneSlotStub.new()
 	rune_stub.rune_id = "rune_slot_1"
@@ -352,9 +348,12 @@ static func create_young_dragon() -> EnemyData:
 	return dragon
 
 ## Создает стартовый отряд игрока (до 4 бойцов; сейчас 1 ГГ)
-static func create_sandbox_player_party() -> Array[Combatant]:
+static func create_sandbox_player_party(synergy_catalog: Array[WeaponSynergyData] = []) -> Array[Combatant]:
+	var resolved_synergies: Array[WeaponSynergyData] = synergy_catalog
+	if resolved_synergies.is_empty():
+		resolved_synergies = InventorySandboxFactory.create_synergy_catalog()
 	var party: Array[Combatant] = []
-	party.append(Combatant.from_combatant_data(create_sandbox_hero(), "hero_1"))
+	party.append(Combatant.from_combatant_data(create_sandbox_hero(), "sandbox_hero", resolved_synergies))
 	return party
 
 ## Создает тестовый отряд противников (сейчас 1 Молодой дракон)

@@ -31,6 +31,7 @@ extends Resource
 @export var basic_attack: SkillData = null
 @export var skills: Array[SkillData] = []
 @export var ultimate_skill: SkillData = null
+@export var equipment_loadout: EquipmentLoadout = null
 @export var equipment_modifiers: Array[EquipmentModifierStub] = []
 @export var item_slots: Array[ItemSlotStub] = []
 @export var rune_slots: Array[RuneSlotStub] = []

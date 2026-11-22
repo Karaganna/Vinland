@@ -16,6 +16,7 @@ const PLAYER_SCENE_PATH: String = "res://scenes/Player.tscn"
 @export var enable_temp_test_battle_zone: bool = true
 
 var player: Player = null
+var _inventory_overlay: InventoryMenuOverlay = null
 
 func _ready() -> void:
 	GameManager.current_location_id = "village"
@@ -28,6 +29,7 @@ func _ready() -> void:
 		_setup_village_battle_zone()
 	_setup_player_and_camera()
 	_handle_return_from_battle()
+	_setup_inventory_overlay()
 
 func _transform_control_rect(ctrl: Control, xform: Transform2D) -> Rect2:
 	var p0: Vector2 = xform * Vector2.ZERO
@@ -252,6 +254,14 @@ func _handle_return_from_battle() -> void:
 		GameManager.clear_saved_player_position()
 	elif player != null and player.restored_position_on_ready:
 		player.is_locked = false
+
+func _setup_inventory_overlay() -> void:
+	_inventory_overlay = get_node_or_null("InventoryMenuOverlay") as InventoryMenuOverlay
+	if _inventory_overlay == null:
+		_inventory_overlay = InventoryMenuOverlay.new()
+		_inventory_overlay.name = "InventoryMenuOverlay"
+		add_child(_inventory_overlay)
+	_inventory_overlay.bind_player(player)
 
 func _setup_village_battle_zone() -> void:
 	var bounds_rect: Rect2 = _get_local_map_bounds()

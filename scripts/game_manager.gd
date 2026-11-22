@@ -29,6 +29,10 @@ var defeated_encounters: Dictionary = {}
 var party_roster: Array[CombatantData] = []
 var party_runtime_snapshots: Dictionary = {}
 
+## Глобальный инвентарь отряда и каталог парных оружейных синергий
+var inventory: InventoryState = null
+var synergy_catalog: Array[WeaponSynergyData] = []
+
 ## Текущая активная локация мира ("home" или "village")
 var current_location_id: String = "home"
 ## Данные текущего противника (legacy-совместимость)
@@ -45,8 +49,16 @@ var _post_battle_grace_until_msec: int = 0
 @export var village_scene_path: String = "res://scenes/village_location.tscn"
 @export var battle_scene_path: String = DEFAULT_BATTLE_SCENE_PATH
 
-## Инициализирует отряд игрока стартовым героем, если отряд еще пуст
+## Инициализирует общий инвентарь и каталог оружейных синергий, если еще не созданы
+func ensure_inventory_initialized() -> void:
+	if synergy_catalog.is_empty():
+		synergy_catalog = InventorySandboxFactory.create_synergy_catalog()
+	if inventory == null:
+		inventory = InventorySandboxFactory.create_starter_inventory()
+
+## Инициализирует отряд игрока стартовым героем и инвентарем, если отряд еще пуст
 func ensure_party_initialized() -> void:
+	ensure_inventory_initialized()
 	if not party_roster.is_empty():
 		return
 	party_roster.append(BattleSandboxFactory.create_sandbox_hero())
@@ -61,11 +73,9 @@ func build_player_party_for_battle() -> Array[Combatant]:
 		var member_data: CombatantData = party_roster[i]
 		if member_data == null:
 			continue
-		var member_id: String = member_data.combatant_id.strip_edges()
-		if member_id.is_empty():
-			member_id = "hero_%d" % (i + 1)
+		var member_id: String = _resolve_member_id(member_data, i)
 		
-		var combatant: Combatant = Combatant.from_combatant_data(member_data, member_id)
+		var combatant: Combatant = Combatant.from_combatant_data(member_data, member_id, synergy_catalog)
 		if party_runtime_snapshots.has(member_id):
 			var snap: Dictionary = party_runtime_snapshots[member_id] as Dictionary
 			if snap.has("current_hp"):
@@ -88,7 +98,7 @@ func build_player_party_for_battle() -> Array[Combatant]:
 	
 	return party
 
-## Полный отдых в лагере/доме: восстанавливает HP и Ману всего отряда
+## Полный отдых в лагере/доме: восстанавливает HP и Ману всего отряда с учетом экипировки
 func rest_at_camp() -> void:
 	ensure_party_initialized()
 	party_runtime_snapshots.clear()
@@ -96,19 +106,115 @@ func rest_at_camp() -> void:
 		var member_data: CombatantData = party_roster[i]
 		if member_data == null:
 			continue
-		var member_id: String = member_data.combatant_id.strip_edges()
-		if member_id.is_empty():
-			member_id = "hero_%d" % (i + 1)
-		var base_hp: int = member_data.stats.max_hp if member_data.stats != null else 100
-		var has_mana: bool = member_data.active_resources.has(BattleTypes.ResourceType.MANA)
+		var member_id: String = _resolve_member_id(member_data, i)
+		var preview: Combatant = Combatant.from_combatant_data(member_data, member_id, synergy_catalog)
+		var true_max_hp: int = maxi(1, preview.max_hp)
+		var has_mana: bool = preview.resources.has_resource(BattleTypes.ResourceType.MANA)
+		var true_max_mana: int = preview.resources.get_max(BattleTypes.ResourceType.MANA)
 		party_runtime_snapshots[member_id] = {
 			"combatant_id": member_id,
-			"current_hp": maxi(1, base_hp),
-			"max_hp": maxi(1, base_hp),
+			"current_hp": true_max_hp,
+			"max_hp": true_max_hp,
 			"has_mana": has_mana,
-			"current_mana": maxi(0, member_data.max_mana),
-			"max_mana": maxi(1, member_data.max_mana)
+			"current_mana": true_max_mana,
+			"max_mana": maxi(1, true_max_mana)
 		}
+
+## Возвращает актуальные статы, HP/Ману и активные синергии бойца с учетом экипировки для UI мира
+func get_party_member_status(member_data: CombatantData) -> Dictionary:
+	ensure_party_initialized()
+	if member_data == null:
+		return {}
+	var idx: int = party_roster.find(member_data)
+	var member_id: String = _resolve_member_id(member_data, maxi(0, idx))
+	var preview: Combatant = Combatant.from_combatant_data(member_data, member_id, synergy_catalog)
+	var cur_hp: int = preview.max_hp
+	var cur_mana: int = preview.resources.get_current(BattleTypes.ResourceType.MANA)
+	var has_mana: bool = preview.resources.has_resource(BattleTypes.ResourceType.MANA)
+	var max_mana: int = preview.resources.get_max(BattleTypes.ResourceType.MANA)
+	
+	if party_runtime_snapshots.has(member_id):
+		var snap: Dictionary = party_runtime_snapshots[member_id] as Dictionary
+		if snap.has("current_hp"):
+			cur_hp = clampi(int(snap.get("current_hp", cur_hp)), 1, preview.max_hp)
+		if has_mana and bool(snap.get("has_mana", false)) and snap.has("current_mana"):
+			cur_mana = clampi(int(snap.get("current_mana", cur_mana)), 0, max_mana)
+	
+	return {
+		"combatant_id": member_id,
+		"display_name": preview.display_name,
+		"current_hp": cur_hp,
+		"max_hp": preview.max_hp,
+		"has_mana": has_mana,
+		"current_mana": cur_mana,
+		"max_mana": max_mana,
+		"attack": preview.get_base_attack_without_rage(),
+		"magic_power": preview.get_effective_magic(),
+		"defense": preview.get_effective_defense(),
+		"speed": preview.get_effective_speed(),
+		"crit_chance": preview.get_effective_crit_chance(),
+		"crit_multiplier": preview.get_effective_crit_multiplier(),
+		"active_synergies": preview.active_synergies,
+		"qte_override": preview.get_effective_qte_override()
+	}
+
+## Применяет расходник к бойцу вне боя (в оверворлде) и обновляет снимок HP/Маны
+func use_overworld_consumable(member_data: CombatantData, item: ConsumableItemData) -> Dictionary:
+	ensure_party_initialized()
+	if member_data == null or item == null:
+		return {"ok": false, "message": "Не указан боец или расходник."}
+	if not item.usable_in_overworld:
+		return {"ok": false, "message": "«%s» можно применять только в бою." % item.display_name}
+	if inventory == null or inventory.get_item_count(item.item_id) <= 0:
+		return {"ok": false, "message": "Предмет закончился."}
+	
+	var status: Dictionary = get_party_member_status(member_data)
+	var member_id: String = str(status.get("combatant_id", ""))
+	var cur_hp: int = int(status.get("current_hp", 1))
+	var max_hp_val: int = int(status.get("max_hp", 1))
+	var has_mana: bool = bool(status.get("has_mana", false))
+	var cur_mana: int = int(status.get("current_mana", 0))
+	var max_mana_val: int = int(status.get("max_mana", 100))
+	
+	var healed_hp: int = 0
+	if item.heal_hp > 0 and cur_hp < max_hp_val:
+		var next_hp: int = mini(max_hp_val, cur_hp + item.heal_hp)
+		healed_hp = next_hp - cur_hp
+		cur_hp = next_hp
+	
+	var restored_mana: int = 0
+	if item.restore_resource_amount > 0 and item.restore_resource_type == BattleTypes.ResourceType.MANA and has_mana and cur_mana < max_mana_val:
+		var next_mana: int = mini(max_mana_val, cur_mana + item.restore_resource_amount)
+		restored_mana = next_mana - cur_mana
+		cur_mana = next_mana
+	
+	if healed_hp <= 0 and restored_mana <= 0:
+		return {"ok": false, "message": "HP и Мана уже максимальны."}
+	
+	if not inventory.remove_item(item.item_id, 1):
+		return {"ok": false, "message": "Не удалось списать предмет из инвентаря."}
+	
+	party_runtime_snapshots[member_id] = {
+		"combatant_id": member_id,
+		"current_hp": cur_hp,
+		"max_hp": max_hp_val,
+		"has_mana": has_mana,
+		"current_mana": cur_mana,
+		"max_mana": maxi(1, max_mana_val)
+	}
+	
+	var parts: PackedStringArray = PackedStringArray()
+	if healed_hp > 0:
+		parts.append("+%d HP" % healed_hp)
+	if restored_mana > 0:
+		parts.append("+%d Маны" % restored_mana)
+	return {"ok": true, "message": "Использовано «%s»: %s." % [item.display_name, ", ".join(parts)]}
+
+func _resolve_member_id(member_data: CombatantData, index: int) -> String:
+	var member_id: String = member_data.combatant_id.strip_edges() if member_data != null else ""
+	if member_id.is_empty():
+		member_id = "hero_%d" % (index + 1)
+	return member_id
 
 ## Сбрасывает сохраненную позицию игрока после восстановления
 func clear_saved_player_position() -> void:

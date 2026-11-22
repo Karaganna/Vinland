@@ -10,6 +10,9 @@ func enter() -> void:
 	if _context == null:
 		return
 	
+	if GameManager != null:
+		GameManager.ensure_inventory_initialized()
+	
 	if _context.player_party.is_empty() and _context.enemy_party.is_empty():
 		if GameManager != null and GameManager.has_pending_battle():
 			var overworld_players: Array[Combatant] = GameManager.build_player_party_for_battle()

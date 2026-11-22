@@ -16,6 +16,7 @@ var active_enemy_index: int = 0
 ## Буфер выбранного действия текущего игрока
 var pending_action_type: BattleTypes.ActionType = BattleTypes.ActionType.ATTACK
 var pending_skill: SkillData = null
+var pending_consumable: ConsumableItemData = null
 var pending_target: Combatant = null
 var pending_target_part: EnemyPartState = null
 var pending_tension_tier: BattleTypes.TensionTier = BattleTypes.TensionTier.LOCKED
@@ -141,6 +142,7 @@ func is_enemy_party_pacified() -> bool:
 func clear_pending_player_action() -> void:
 	pending_action_type = BattleTypes.ActionType.ATTACK
 	pending_skill = null
+	pending_consumable = null
 	pending_target = null
 	pending_target_part = null
 	pending_tension_tier = BattleTypes.TensionTier.LOCKED

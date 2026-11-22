@@ -64,10 +64,10 @@ func start_battle(players: Array[Combatant], enemies: Array[Combatant]) -> void:
 	_bind_combatant_signals()
 	_change_state(&"battle_start")
 
-## Хук для кнопки ITEM: пока возвращает заглушку при пустом инвентаре
+## Применяет слот расходника (совместимый хук)
 func execute_item_action(actor: Combatant, slot: ItemSlotStub = null) -> String:
 	if slot == null or slot.is_empty():
-		var empty_msg: String = "Инвентарь пока пуст"
+		var empty_msg: String = "Не выбран расходник"
 		_emit_log(empty_msg)
 		return empty_msg
 	
@@ -84,6 +84,30 @@ func execute_item_action(actor: Combatant, slot: ItemSlotStub = null) -> String:
 	var used_msg: String = " ".join(parts)
 	_emit_log(used_msg)
 	return used_msg
+
+## Применяет полноценный ресурс расходника ConsumableItemData с логированием
+func execute_consumable_action(actor: Combatant, item: ConsumableItemData) -> String:
+	if actor == null or item == null:
+		return ""
+	var parts: PackedStringArray = PackedStringArray()
+	parts.append("%s использует «%s»." % [actor.display_name, item.display_name])
+	if item.heal_hp > 0:
+		var healed: int = actor.heal_hp(item.heal_hp, true)
+		parts.append("+%d HP." % healed)
+	if item.restore_resource_amount > 0:
+		var restored: int = actor.restore_resource(item.restore_resource_type, item.restore_resource_amount)
+		parts.append("+%d %s." % [restored, BattleTypes.get_resource_display_name(item.restore_resource_type)])
+	var cured_names: PackedStringArray = PackedStringArray()
+	for st: BattleTypes.StatusType in item.cure_statuses:
+		if actor.has_status(st):
+			actor.remove_status(st)
+			cured_names.append(BattleTypes.get_status_display_name(st))
+	if not cured_names.is_empty():
+		parts.append("Сняты статусы: %s." % ", ".join(cured_names))
+	
+	var msg: String = " ".join(parts)
+	_emit_log(msg)
+	return msg
 
 ## Запускает соответствующую мини-игру QTE внутри qte_slot_container нижней панели
 func request_qte(config: QTEConfigData, is_defensive: bool) -> void:
