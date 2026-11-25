@@ -7,7 +7,7 @@ signal encounter_alert_finished
 
 @export var speed: float = 120.0
 @export var is_movement_locked: bool = false
-@export var walk_animation_fps: float = 8.0
+@export var walk_animation_fps: float = 9.0
 
 ## Совместимое свойство блокировки (синхронизировано с is_movement_locked)
 var is_locked: bool = false: set = _set_is_locked, get = _get_is_locked
@@ -16,7 +16,7 @@ var is_locked: bool = false: set = _set_is_locked, get = _get_is_locked
 var restored_position_on_ready: bool = false
 
 const WALK_SPRITES_BASE_PATH: String = "res://assets/sprites/player/walk"
-const WALK_FRAME_COUNT: int = 4
+const MAX_WALK_FRAMES: int = 32
 
 ## Узел для отображения восклицательного знака над головой
 var _alert_marker: Node2D = null
@@ -49,9 +49,9 @@ func _setup_collision_bounds() -> void:
 	var col: CollisionShape2D = get_node_or_null("CollisionShape2D")
 	if col != null and col.shape is RectangleShape2D:
 		var rect_shape: RectangleShape2D = col.shape.duplicate() as RectangleShape2D
-		rect_shape.size = Vector2(10.0, 8.0)
+		rect_shape.size = Vector2(16.0, 10.0)
 		col.shape = rect_shape
-		col.position = Vector2(0.0, 4.0)
+		col.position = Vector2(0.0, 27.0)
 
 func _physics_process(_delta: float) -> void:
 	if is_movement_locked:
@@ -103,15 +103,19 @@ func _setup_animated_sprite() -> void:
 			_animated_sprite.animation = initial_anim
 			_animated_sprite.frame = 0
 
-## Загружает 4 кадра (sprite_0.png .. sprite_3.png) для указанного направления
+## Динамически загружает кадры ходьбы (sprite_0.png .. sprite_N.png) для указанного направления
 func _load_direction_frames(frames: SpriteFrames, dir_name: String) -> bool:
 	var loaded_textures: Array[Texture2D] = []
-	for i: int in range(WALK_FRAME_COUNT):
+	for i: int in range(MAX_WALK_FRAMES):
 		var path: String = "%s/%s/sprite_%d.png" % [WALK_SPRITES_BASE_PATH, dir_name, i]
 		if ResourceLoader.exists(path):
 			var tex: Texture2D = load(path) as Texture2D
 			if tex != null:
 				loaded_textures.append(tex)
+		elif i == 0:
+			continue
+		else:
+			break
 	
 	if loaded_textures.is_empty():
 		return false
@@ -170,7 +174,7 @@ func trigger_encounter_alert(duration: float = 0.75) -> void:
 	
 	_alert_marker.visible = true
 	_alert_marker.scale = Vector2.ZERO
-	_alert_marker.position = Vector2(0.0, -18.0)
+	_alert_marker.position = Vector2(0.0, -36.0)
 	
 	var tween: Tween = create_tween().set_parallel(false)
 	# Эффект выпрыгивания знака вверх
@@ -213,7 +217,7 @@ func _setup_alert_marker() -> void:
 	
 	_alert_marker = Node2D.new()
 	_alert_marker.name = "AlertMarker"
-	_alert_marker.position = Vector2(0.0, -18.0)
+	_alert_marker.position = Vector2(0.0, -36.0)
 	_alert_marker.visible = false
 	_alert_marker.z_index = 10
 	add_child(_alert_marker)

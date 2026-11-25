@@ -409,7 +409,7 @@ func transition_to_village(spawn_pos: Vector2 = Vector2(640.0, 140.0)) -> void:
 	call_deferred("_switch_to_village_scene")
 
 ## Возврат в стартовую локацию (Дом героя)
-func transition_to_home(spawn_pos: Vector2 = Vector2(640.0, 295.0)) -> void:
+func transition_to_home(spawn_pos: Vector2 = Vector2(640.0, 265.0)) -> void:
 	current_location_id = "home"
 	saved_player_position = spawn_pos
 	has_saved_player_position = true

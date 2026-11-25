@@ -7,9 +7,9 @@ const MAP_HEIGHT: float = 783.0
 const LOCATION_TEXTURE_PATH: String = "res://assets/locations/home.png"
 
 ## Начальная точка появления игрока у камина
-@export var default_spawn_position: Vector2 = Vector2(640.0, 295.0)
-## Масштаб персонажа под пропорции интерьера дома
-@export var player_visual_scale: Vector2 = Vector2(3.0, 3.0)
+@export var default_spawn_position: Vector2 = Vector2(640.0, 265.0)
+## Масштаб персонажа под пропорции интерьера дома (спрайты 64x64 -> 128px)
+@export var player_visual_scale: Vector2 = Vector2(2.0, 2.0)
 ## Скорость передвижения персонажа в доме
 @export var player_move_speed: float = 180.0
 ## Отображать ли контуры невидимых стен и зон для отладки

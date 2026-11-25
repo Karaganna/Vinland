@@ -57,8 +57,8 @@ static func build_sandbox_ui(root: Control) -> Dictionary:
 		hero_spr.name = "HeroSprite"
 		hero_spr.texture = load(hero_tex_path) as Texture2D
 		hero_spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		hero_spr.scale = Vector2(3.0, 3.0)
-		hero_spr.position = Vector2(56.0, 96.0)
+		hero_spr.scale = Vector2(1.5, 1.5)
+		hero_spr.position = Vector2(54.0, 102.0)
 		root.add_child(hero_spr)
 	else:
 		var hero_rect: ColorRect = ColorRect.new()

@@ -7,7 +7,7 @@ const VILLAGE_HEIGHT: float = 783.0
 const PLAYER_SCENE_PATH: String = "res://scenes/Player.tscn"
 
 @export var default_spawn_position: Vector2 = Vector2(640.0, 140.0)
-@export var player_visual_scale: Vector2 = Vector2(3.0, 3.0)
+@export var player_visual_scale: Vector2 = Vector2(2.0, 2.0)
 ## Создавать ли невидимые границы по краям карты (подстраиваются под VillageGreenBackground)
 @export var enable_map_boundaries: bool = true
 ## Деревня по умолчанию является полностью безопасной локацией

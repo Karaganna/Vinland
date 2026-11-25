@@ -736,8 +736,8 @@ func _build_battle_ui() -> void:
 		var hero_spr: Sprite2D = Sprite2D.new()
 		hero_spr.texture = load(hero_tex_path) as Texture2D
 		hero_spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		hero_spr.scale = Vector2(3.0, 3.0)
-		hero_spr.position = Vector2(0.0, 18.0)
+		hero_spr.scale = Vector2(1.0, 1.0)
+		hero_spr.position = Vector2(0.0, 8.0)
 		_player_visual.add_child(hero_spr)
 	else:
 		var fallback_rect: ColorRect = ColorRect.new()
