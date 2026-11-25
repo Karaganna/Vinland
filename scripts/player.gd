@@ -99,6 +99,11 @@ func _setup_animated_sprite() -> void:
 			placeholder_sprite.visible = false
 		
 		var initial_anim: String = "walk_" + _last_facing_dir
+		if not frames.has_animation(initial_anim):
+			if frames.has_animation("walk_right"):
+				initial_anim = "walk_right"
+			elif frames.has_animation("walk_left"):
+				initial_anim = "walk_left"
 		if frames.has_animation(initial_anim):
 			_animated_sprite.animation = initial_anim
 			_animated_sprite.frame = 0
@@ -209,6 +214,26 @@ func _set_is_locked(value: bool) -> void:
 		lock_movement()
 	else:
 		unlock_movement()
+
+## Устанавливает стартовое/текущее направление взгляда персонажа с фолбэком на доступные кадры
+func set_facing_direction(dir_name: String) -> void:
+	if dir_name.is_empty():
+		return
+	_last_facing_dir = dir_name
+	if _animated_sprite == null or _animated_sprite.sprite_frames == null:
+		return
+	var frames: SpriteFrames = _animated_sprite.sprite_frames
+	var anim_name: String = "walk_" + dir_name
+	if not frames.has_animation(anim_name):
+		if frames.has_animation("walk_right"):
+			anim_name = "walk_right"
+		elif frames.has_animation("walk_left"):
+			anim_name = "walk_left"
+		else:
+			return
+	_animated_sprite.stop()
+	_animated_sprite.animation = anim_name
+	_animated_sprite.frame = 0
 
 ## Процедурное создание пиксельного знака '!' над персонажем
 func _setup_alert_marker() -> void:

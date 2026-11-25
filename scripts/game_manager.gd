@@ -397,7 +397,7 @@ func _switch_to_battle_scene(target_scene_path: String) -> void:
 	get_tree().current_scene = battle_node
 
 ## Переход в локацию Деревня
-func transition_to_village(spawn_pos: Vector2 = Vector2(640.0, 140.0)) -> void:
+func transition_to_village(spawn_pos: Vector2 = Vector2(340.0, 356.0)) -> void:
 	current_location_id = "village"
 	saved_player_position = spawn_pos
 	has_saved_player_position = true

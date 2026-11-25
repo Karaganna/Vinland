@@ -225,7 +225,7 @@ func _setup_exit_to_village() -> void:
 	add_child(exit_zone)
 
 func _on_exit_to_village_entered(_p: Player, _id: String) -> void:
-	GameManager.transition_to_village(Vector2(640.0, 140.0))
+	GameManager.transition_to_village(Vector2(340.0, 356.0))
 
 ## Боевая зона со случайными битвами (используется только если enable_random_encounters = true)
 func _setup_corridor_battle_zone() -> void:
