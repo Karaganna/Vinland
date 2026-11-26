@@ -227,16 +227,20 @@ func _refresh_stats_and_synergy(hero_data: CombatantData) -> void:
 		return
 	
 	if _stats_label != null:
+		var work_res_name: String = str(status.get("working_resource_name", "Поток (ЭН)"))
+		var flow_note: String = " [≥90% → Ожог]" if bool(status.get("has_flow_passive", false)) else ""
 		var mana_part: String = ""
 		if bool(status.get("has_mana", false)):
-			mana_part = "   Мана: %d/%d" % [int(status.get("current_mana", 0)), int(status.get("max_mana", 100))]
+			mana_part = " (%d/%d)" % [int(status.get("current_mana", 0)), int(status.get("max_mana", 100))]
 		var crit_pct: int = roundi(float(status.get("crit_chance", 0.05)) * 100.0)
 		var crit_mult: float = float(status.get("crit_multiplier", 1.5))
 		_stats_label.text = (
-			"HP: %d/%d%s\nАТК: %d  МАГ: %d  ЗАЩ: %d  СКР: %d\nКрит: %d%% (x%.2f)" % [
+			"HP: %d/%d · %s%s%s\nАТК: %d  МАГ: %d  ЗАЩ: %d  СКР: %d\nКрит: %d%% (x%.2f)" % [
 				int(status.get("current_hp", 100)),
 				int(status.get("max_hp", 100)),
+				work_res_name,
 				mana_part,
+				flow_note,
 				int(status.get("attack", 10)),
 				int(status.get("magic_power", 10)),
 				int(status.get("defense", 5)),

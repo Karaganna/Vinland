@@ -26,19 +26,24 @@ signal battle_end_action_selected(action_id: String)
 @export var sub_menu_container: VBoxContainer = null
 @export var qte_slot_container: Control = null
 
-@export_group("Статус игрока")
+@export_group("Статус активного бойца (единый Поток/бак + Напряжение)")
 @export var player_name_label: Label = null
 @export var player_hp_bar: ProgressBar = null
 @export var player_hp_label: Label = null
+@export var working_resource_tag_label: Label = null
+@export var working_resource_bar: ProgressBar = null
+@export var working_resource_value_label: Label = null
+@export var tension_bar: ProgressBar = null
+@export var tension_value_label: Label = null
+@export var player_statuses_label: Label = null
+
+@export_group("Legacy-поля (опционально)")
 @export var energy_bar: ProgressBar = null
 @export var mana_bar: ProgressBar = null
 @export var rage_bar: ProgressBar = null
-@export var tension_bar: ProgressBar = null
 @export var energy_value_label: Label = null
 @export var mana_value_label: Label = null
 @export var rage_value_label: Label = null
-@export var tension_value_label: Label = null
-@export var player_statuses_label: Label = null
 
 @export_group("Статус врага и телеграф")
 @export var enemy_name_label: Label = null
@@ -114,7 +119,7 @@ func _on_item_pressed() -> void:
 func _on_ultimate_pressed() -> void:
 	action_selected.emit(BattleTypes.ActionType.ULTIMATE)
 
-## Обновляет шкалы HP, ресурсов и статусов для активного героя и ведущего противника
+## Обновляет шкалы HP, единой рабочей шкалы («Поток» у ГГ / бак у рекрута), Напряжения и статусов
 func refresh_combatants(
 	player_party: Array[Combatant],
 	enemy_party: Array[Combatant],
@@ -129,11 +134,18 @@ func refresh_combatants(
 			player_name_label.text = hero.display_name
 		_update_bar(player_hp_bar, hero.current_hp, hero.max_hp, true)
 		if player_hp_label != null:
-			player_hp_label.text = "HP: %d/%d" % [hero.current_hp, hero.max_hp]
+			var barrier_hp: int = hero.get_shield_barrier_hp()
+			var barrier_str: String = " [+%d]" % barrier_hp if barrier_hp > 0 else ""
+			player_hp_label.text = "HP: %d/%d%s" % [hero.current_hp, hero.max_hp, barrier_str]
+		
+		_update_working_resource_row(hero)
+		_update_tension_row(hero.resources)
+		
+		# Поддержка опциональных legacy-баров, если привязаны вручную
 		_update_resource_bar(energy_bar, energy_value_label, hero.resources, BattleTypes.ResourceType.ENERGY)
 		_update_resource_bar(mana_bar, mana_value_label, hero.resources, BattleTypes.ResourceType.MANA)
 		_update_resource_bar(rage_bar, rage_value_label, hero.resources, BattleTypes.ResourceType.RAGE)
-		_update_resource_bar(tension_bar, tension_value_label, hero.resources, BattleTypes.ResourceType.TENSION)
+		
 		if player_statuses_label != null:
 			player_statuses_label.text = _format_statuses(hero)
 	
@@ -158,7 +170,7 @@ func refresh_combatants(
 		else:
 			clear_telegraph_banner()
 
-## Показывает или скрывает основное меню из 5 кнопок с учетом доступности Ульты и Умений
+## Показывает или скрывает основное меню из 5 кнопок с учетом доступности Ульты и Перезарядки
 func set_action_menu_visible(menu_visible: bool, active_hero: Combatant = null) -> void:
 	if action_menu_container != null:
 		action_menu_container.visible = menu_visible
@@ -169,6 +181,8 @@ func set_action_menu_visible(menu_visible: bool, active_hero: Combatant = null) 
 			btn.disabled = not menu_visible
 	
 	if menu_visible and active_hero != null:
+		if attack_button != null:
+			attack_button.text = "↻ Перезарядка" if active_hero.has_status(BattleTypes.StatusType.RELOAD_REQUIRED) else "⚔ Атака"
 		if skill_button != null:
 			skill_button.disabled = active_hero.skills.is_empty()
 		if ultimate_button != null:
@@ -180,7 +194,7 @@ func set_action_menu_visible(menu_visible: bool, active_hero: Combatant = null) 
 		if attack_button != null and attack_button.is_inside_tree():
 			attack_button.grab_focus()
 
-## Отображает список навыков выбранного бойца
+## Отображает список навыков активного бойца с ценой в его рабочей шкале (Поток / основной бак)
 func show_skill_list(actor: Combatant) -> void:
 	if sub_menu_container == null or actor == null:
 		return
@@ -189,20 +203,24 @@ func show_skill_list(actor: Combatant) -> void:
 		sub_menu_scroll.visible = true
 	sub_menu_container.visible = true
 	
+	var res_label: String = BattleTypes.HERO_FLOW_DISPLAY_NAME if actor.resources.is_flow_mode else actor.resources.get_working_display_name()
 	for skill: SkillData in actor.skills:
 		if skill == null:
 			continue
 		var btn: Button = Button.new()
 		var cost_text: String = ""
 		if skill.resource_cost > 0:
-			cost_text = " (%d %s)" % [skill.resource_cost, BattleTypes.get_resource_display_name(skill.resource_type)]
+			cost_text = " (%d %s)" % [skill.resource_cost, res_label]
 		elif skill.is_rage_to_heal():
-			cost_text = " (Ярость)"
+			cost_text = " (сжигает %s)" % res_label
+		elif skill.has_tag(BattleTypes.SkillTag.SCALES_WITH_RAGE):
+			cost_text = " (скейл от %s)" % res_label
 		btn.text = "%s%s" % [skill.skill_name, cost_text]
 		btn.tooltip_text = skill.description
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		btn.add_theme_font_size_override("font_size", 10)
-		btn.disabled = not actor.resources.can_afford(skill.resource_type, skill.resource_cost)
+		var reload_blocked: bool = actor.has_status(BattleTypes.StatusType.RELOAD_REQUIRED) and skill.has_tag(BattleTypes.SkillTag.RANGED_ATTACK)
+		btn.disabled = reload_blocked or not actor.resources.can_afford(skill.resource_type, skill.resource_cost)
 		var captured_skill: SkillData = skill
 		btn.pressed.connect(func() -> void:
 			skill_selected.emit(captured_skill)
@@ -211,7 +229,7 @@ func show_skill_list(actor: Combatant) -> void:
 	
 	_add_cancel_button()
 
-## Отображает список доступных боевых расходников из инвентаря с количеством и эффектом
+## Отображает список доступных боевых расходников из инвентаря
 func show_item_list(entries: Array[Dictionary]) -> void:
 	if sub_menu_container == null:
 		return
@@ -239,7 +257,39 @@ func show_item_list(entries: Array[Dictionary]) -> void:
 	
 	_add_cancel_button()
 
-## Отображает доступные цели и их открытые части тела (зоны атаки)
+## Отображает выбор союзника как цели (для лечения, баффов, предметов или стойки «Начеку»)
+func show_ally_selection(allies: Array[Combatant]) -> void:
+	if sub_menu_container == null:
+		return
+	_clear_sub_menu()
+	if sub_menu_scroll != null:
+		sub_menu_scroll.visible = true
+	sub_menu_container.visible = true
+	
+	for ally: Combatant in allies:
+		if ally == null or not ally.is_alive():
+			continue
+		var btn: Button = Button.new()
+		var work_type: BattleTypes.ResourceType = ally.resources.get_working_resource_type()
+		btn.text = "%s (HP: %d/%d · %s: %d/%d)" % [
+			ally.display_name,
+			ally.current_hp,
+			ally.max_hp,
+			ally.resources.get_working_display_name(),
+			ally.resources.get_current(work_type),
+			ally.resources.get_max(work_type)
+		]
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.add_theme_font_size_override("font_size", 10)
+		var captured_ally: Combatant = ally
+		btn.pressed.connect(func() -> void:
+			target_selected.emit(captured_ally, null)
+		)
+		sub_menu_container.add_child(btn)
+	
+	_add_cancel_button()
+
+## Отображает доступные цели врагов и их открытые части тела (зоны атаки)
 func show_target_and_part_selection(enemies: Array[Combatant]) -> void:
 	if sub_menu_container == null:
 		return
@@ -382,6 +432,45 @@ func _add_cancel_button() -> void:
 	)
 	sub_menu_container.add_child(back_btn)
 
+func _update_working_resource_row(hero: Combatant) -> void:
+	if hero == null or hero.resources == null:
+		return
+	var work_type: BattleTypes.ResourceType = hero.resources.get_working_resource_type()
+	var cur_val: int = hero.resources.get_current(work_type)
+	var max_val: int = hero.resources.get_max(work_type)
+	if working_resource_tag_label != null:
+		working_resource_tag_label.text = hero.resources.get_working_display_name()
+	if working_resource_bar != null:
+		_set_bar_fill_color(working_resource_bar, BattleTypes.get_resource_color(work_type))
+		_update_bar(working_resource_bar, cur_val, max_val, true)
+	if working_resource_value_label != null:
+		var fire_mark: String = " 🔥" if not hero.get_triggered_flow_threshold_items().is_empty() else ""
+		working_resource_value_label.text = "%d/%d%s" % [cur_val, max_val, fire_mark]
+
+func _update_tension_row(pool: ResourcePool) -> void:
+	if pool == null:
+		return
+	var cur_val: int = pool.get_current(BattleTypes.ResourceType.TENSION)
+	var max_val: int = pool.get_max(BattleTypes.ResourceType.TENSION)
+	var active: bool = pool.has_resource(BattleTypes.ResourceType.TENSION)
+	_update_bar(tension_bar, cur_val, max_val, active)
+	if tension_value_label != null:
+		tension_value_label.visible = active
+		var tier: BattleTypes.TensionTier = pool.get_available_tension_tier()
+		var tier_mark: String = ""
+		if tier == BattleTypes.TensionTier.FULL_100:
+			tier_mark = " ★★"
+		elif tier == BattleTypes.TensionTier.HALF_50:
+			tier_mark = " ★"
+		tension_value_label.text = "%d/%d%s" % [cur_val, max_val, tier_mark]
+
+func _set_bar_fill_color(bar: ProgressBar, color: Color) -> void:
+	if bar == null:
+		return
+	var st: StyleBoxFlat = bar.get_theme_stylebox("fill") as StyleBoxFlat
+	if st != null:
+		st.bg_color = color
+
 func _update_bar(bar: ProgressBar, current_val: int, max_val: int, show_bar: bool) -> void:
 	if bar == null:
 		return
@@ -395,7 +484,7 @@ func _update_resource_bar(
 	pool: ResourcePool,
 	res_type: BattleTypes.ResourceType
 ) -> void:
-	if pool == null:
+	if pool == null or bar == null:
 		return
 	var active: bool = pool.has_resource(res_type)
 	var cur_val: int = pool.get_current(res_type)
@@ -409,7 +498,7 @@ func _format_enemy_parts(enemy: Combatant) -> String:
 	if enemy == null or enemy.parts.is_empty():
 		return ""
 	var lines: PackedStringArray = PackedStringArray()
-	var staggered: bool = enemy.is_staggered()
+	var staggered: bool = enemy.is_staggered() or enemy.has_status(BattleTypes.StatusType.KNOCKED_DOWN)
 	var telegraphing: bool = enemy.is_telegraphing()
 	for part: EnemyPartState in enemy.parts:
 		if part == null or part.data == null:
@@ -439,13 +528,10 @@ func _apply_built_ui(built: Dictionary) -> void:
 	if player_name_label == null: player_name_label = built.get("player_name_label") as Label
 	if player_hp_bar == null: player_hp_bar = built.get("player_hp_bar") as ProgressBar
 	if player_hp_label == null: player_hp_label = built.get("player_hp_label") as Label
-	if energy_bar == null: energy_bar = built.get("energy_bar") as ProgressBar
-	if mana_bar == null: mana_bar = built.get("mana_bar") as ProgressBar
-	if rage_bar == null: rage_bar = built.get("rage_bar") as ProgressBar
+	if working_resource_tag_label == null: working_resource_tag_label = built.get("working_resource_tag_label") as Label
+	if working_resource_bar == null: working_resource_bar = built.get("working_resource_bar") as ProgressBar
+	if working_resource_value_label == null: working_resource_value_label = built.get("working_resource_value_label") as Label
 	if tension_bar == null: tension_bar = built.get("tension_bar") as ProgressBar
-	if energy_value_label == null: energy_value_label = built.get("energy_value_label") as Label
-	if mana_value_label == null: mana_value_label = built.get("mana_value_label") as Label
-	if rage_value_label == null: rage_value_label = built.get("rage_value_label") as Label
 	if tension_value_label == null: tension_value_label = built.get("tension_value_label") as Label
 	if player_statuses_label == null: player_statuses_label = built.get("player_statuses_label") as Label
 	if enemy_name_label == null: enemy_name_label = built.get("enemy_name_label") as Label
@@ -470,5 +556,10 @@ func _format_statuses(combatant: Combatant) -> String:
 	if combatant.is_blocking:
 		parts.append("БЛОК")
 	for st: StatusEffectInstance in combatant.statuses:
-		parts.append("%s (%d)" % [BattleTypes.get_status_display_name(st.status_type), st.remaining_turns])
+		if st.status_type == BattleTypes.StatusType.SHIELD_BARRIER:
+			parts.append("Барьер: %d" % st.barrier_hp)
+			continue
+		var stack_part: String = " x%d" % st.stacks if st.stacks > 1 else ""
+		var turn_part: String = "∞" if st.is_permanent_in_battle else str(st.remaining_turns)
+		parts.append("%s%s (%s)" % [BattleTypes.get_status_display_name(st.status_type), stack_part, turn_part])
 	return ", ".join(parts)

@@ -15,9 +15,17 @@ extends ItemData
 @export_range(-0.5, 1.0, 0.01) var bonus_crit_chance: float = 0.0
 @export var bonus_crit_multiplier: float = 0.0
 
-@export_group("Умения и теги")
+@export_group("Умения, Поток ГГ и теги")
 @export var granted_skills: Array[SkillData] = []
 @export var passive_tags: Array[StringName] = []
+@export var is_hero_signature: bool = false
+@export var sets_hero_flow_mode: bool = false
+@export var hero_flow_mode: BattleTypes.ResourceType = BattleTypes.ResourceType.ENERGY
+@export var has_flow_threshold_passive: bool = false
+@export_range(0.0, 1.0, 0.05) var flow_threshold_ratio: float = 0.90
+@export var flow_threshold_status: BattleTypes.StatusType = BattleTypes.StatusType.BURN
+@export var flow_threshold_status_turns: int = 2
+@export var flow_threshold_status_magnitude: float = 8.0
 
 @export_group("Модификация порогов QTE")
 @export var override_qte_thresholds: bool = false

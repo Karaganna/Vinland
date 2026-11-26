@@ -2,7 +2,7 @@
 class_name EnemyTurnState
 extends BaseBattleState
 
-## Выбор действия врага с учетом TAUNT, HYPNOSIS, STAGGER/SLEEP и двухфазного телеграфа
+## Выбор действия врага с учетом TAUNT, HYPNOSIS, статусов контроля и двухфазного телеграфа
 var _turn_counter: int = 0
 
 func get_state_id() -> StringName:
@@ -27,10 +27,10 @@ func enter() -> void:
 	
 	enemy.clear_block_stance()
 	
-	# Если враг спит или ошеломлен — пропуск хода и спад Ярости
+	# Если враг под эффектом потери хода (SLEEP, FREEZE, STUN, KNOCKED_DOWN, STAGGER)
 	if enemy.is_incapacitated():
 		enemy.resources.decay_rage_on_idle_or_block()
-		var reason: String = "спит" if enemy.has_status(BattleTypes.StatusType.SLEEP) else "ошеломлён"
+		var reason: String = enemy.get_incapacitation_reason()
 		log_requested.emit("%s %s и не может атаковать!" % [enemy.display_name, reason])
 		_refresh_ui()
 		_advance_enemy_or_resolve()

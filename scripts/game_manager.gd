@@ -143,6 +143,10 @@ func get_party_member_status(member_data: CombatantData) -> Dictionary:
 	return {
 		"combatant_id": member_id,
 		"display_name": preview.display_name,
+		"is_hero": preview.is_hero,
+		"working_resource_name": preview.resources.get_working_display_name(),
+		"working_resource_type": preview.resources.get_working_resource_type(),
+		"has_flow_passive": preview.equipment_loadout != null and not preview.equipment_loadout.get_flow_threshold_items().is_empty(),
 		"current_hp": cur_hp,
 		"max_hp": preview.max_hp,
 		"has_mana": has_mana,

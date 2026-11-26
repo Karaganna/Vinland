@@ -2,8 +2,8 @@
 class_name BattleUIBuilder
 extends RefCounted
 
-## Процедурный сборщик боевого UI для быстрого теста в Viewport 640x360
-## Не зависит от BattleUIPresenter (возвращает Dictionary со ссылками на созданные узлы)
+## Процедурный сборщик боевого UI для базового Viewport 640x360
+## Отображает у ГГ ровно одну рабочую шкалу «Поток (режим)» + шкалу ульты «Напряжение»
 
 static func build_sandbox_ui(root: Control) -> Dictionary:
 	if root == null:
@@ -47,8 +47,8 @@ static func build_sandbox_ui(root: Control) -> Dictionary:
 	telegraph_banner.visible = false
 	root.add_child(telegraph_banner)
 	
-	# 2. Левая сторона: Главный герой + 4 шкалы ресурсов
-	var player_name_lbl: Label = _create_label("PlayerNameLabel", Vector2(18.0, 32.0), Vector2(236.0, 18.0), "Герой", 12)
+	# 2. Левая сторона: Активный боец (HP + единственная рабочая шкала «Поток»/бак + Напряжение)
+	var player_name_lbl: Label = _create_label("PlayerNameLabel", Vector2(18.0, 32.0), Vector2(262.0, 18.0), "Герой", 12)
 	root.add_child(player_name_lbl)
 	
 	var hero_tex_path: String = "res://assets/sprites/player/walk/right/sprite_0.png"
@@ -68,20 +68,33 @@ static func build_sandbox_ui(root: Control) -> Dictionary:
 		hero_rect.color = Color(0.25, 0.55, 0.90, 1.0)
 		root.add_child(hero_rect)
 	
-	var player_hp_bar: ProgressBar = _create_bar("PlayerHPBar", Vector2(102.0, 54.0), Vector2(154.0, 13.0), Color(0.22, 0.78, 0.34, 1.0))
+	var res_x: float = 96.0
+	var res_w: float = 192.0
+	var player_hp_bar: ProgressBar = _create_bar("PlayerHPBar", Vector2(res_x, 54.0), Vector2(res_w, 14.0), Color(0.22, 0.78, 0.34, 1.0))
 	root.add_child(player_hp_bar)
-	var player_hp_lbl: Label = _create_label("PlayerHPLabel", Vector2(106.0, 52.0), Vector2(146.0, 15.0), "HP: 140/140", 9, HORIZONTAL_ALIGNMENT_CENTER)
+	var player_hp_lbl: Label = _create_label("PlayerHPLabel", Vector2(res_x + 4.0, 53.0), Vector2(res_w - 8.0, 15.0), "HP: 140/140", 9, HORIZONTAL_ALIGNMENT_CENTER)
 	root.add_child(player_hp_lbl)
 	
-	# Шкалы Энергии, Маны, Ярости и Напряжения
-	var res_x: float = 102.0
-	var res_w: float = 154.0
-	var energy_row: Dictionary = _create_resource_row(root, "Energy", "ЭН", Vector2(res_x, 72.0), res_w, Color(0.95, 0.80, 0.20, 1.0))
-	var mana_row: Dictionary = _create_resource_row(root, "Mana", "МН", Vector2(res_x, 90.0), res_w, Color(0.25, 0.60, 0.98, 1.0))
-	var rage_row: Dictionary = _create_resource_row(root, "Rage", "ЯР", Vector2(res_x, 108.0), res_w, Color(0.92, 0.28, 0.22, 1.0))
-	var tension_row: Dictionary = _create_resource_row(root, "Tension", "УЛ", Vector2(res_x, 126.0), res_w, Color(0.75, 0.38, 0.98, 1.0))
+	var working_row: Dictionary = _create_resource_row(
+		root,
+		"WorkingResource",
+		BattleTypes.get_flow_display_label(BattleTypes.ResourceType.ENERGY),
+		Vector2(res_x, 75.0),
+		res_w,
+		68.0,
+		BattleTypes.get_resource_color(BattleTypes.ResourceType.ENERGY)
+	)
+	var tension_row: Dictionary = _create_resource_row(
+		root,
+		"Tension",
+		"Напряж.",
+		Vector2(res_x, 95.0),
+		res_w,
+		68.0,
+		BattleTypes.get_resource_color(BattleTypes.ResourceType.TENSION)
+	)
 	
-	var player_statuses_lbl: Label = _create_label("PlayerStatusesLabel", Vector2(18.0, 152.0), Vector2(242.0, 48.0), "", 10)
+	var player_statuses_lbl: Label = _create_label("PlayerStatusesLabel", Vector2(18.0, 126.0), Vector2(272.0, 72.0), "", 9)
 	player_statuses_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	player_statuses_lbl.modulate = Color(0.78, 0.90, 1.0, 1.0)
 	root.add_child(player_statuses_lbl)
@@ -107,7 +120,7 @@ static func build_sandbox_ui(root: Control) -> Dictionary:
 	enemy_parts_lbl.modulate = Color(0.95, 0.90, 0.72, 1.0)
 	root.add_child(enemy_parts_lbl)
 	
-	var enemy_statuses_lbl: Label = _create_label("EnemyStatusesLabel", Vector2(364.0, 162.0), Vector2(258.0, 38.0), "", 10, HORIZONTAL_ALIGNMENT_RIGHT)
+	var enemy_statuses_lbl: Label = _create_label("EnemyStatusesLabel", Vector2(364.0, 162.0), Vector2(258.0, 38.0), "", 9, HORIZONTAL_ALIGNMENT_RIGHT)
 	enemy_statuses_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	enemy_statuses_lbl.modulate = Color(1.0, 0.80, 0.72, 1.0)
 	root.add_child(enemy_statuses_lbl)
@@ -211,13 +224,10 @@ static func build_sandbox_ui(root: Control) -> Dictionary:
 		"player_name_label": player_name_lbl,
 		"player_hp_bar": player_hp_bar,
 		"player_hp_label": player_hp_lbl,
-		"energy_bar": energy_row["bar"],
-		"mana_bar": mana_row["bar"],
-		"rage_bar": rage_row["bar"],
+		"working_resource_tag_label": working_row["tag_label"],
+		"working_resource_bar": working_row["bar"],
+		"working_resource_value_label": working_row["val_label"],
 		"tension_bar": tension_row["bar"],
-		"energy_value_label": energy_row["val_label"],
-		"mana_value_label": mana_row["val_label"],
-		"rage_value_label": rage_row["val_label"],
 		"tension_value_label": tension_row["val_label"],
 		"player_statuses_label": player_statuses_lbl,
 		"enemy_name_label": enemy_name_lbl,
@@ -271,20 +281,22 @@ static func _create_resource_row(
 	short_tag: String,
 	pos: Vector2,
 	total_w: float,
+	tag_w: float,
 	fill_color: Color
 ) -> Dictionary:
-	var tag_lbl: Label = _create_label(p_prefix + "Tag", pos + Vector2(0.0, -1.0), Vector2(22.0, 14.0), short_tag, 9)
-	tag_lbl.modulate = Color(0.85, 0.88, 0.96, 1.0)
+	var tag_lbl: Label = _create_label(p_prefix + "Tag", pos + Vector2(0.0, -1.0), Vector2(tag_w, 15.0), short_tag, 9)
+	tag_lbl.modulate = Color(0.88, 0.92, 0.98, 1.0)
 	parent.add_child(tag_lbl)
 	
-	var bar_w: float = total_w - 24.0
-	var bar: ProgressBar = _create_bar(p_prefix + "Bar", pos + Vector2(24.0, 0.0), Vector2(bar_w, 12.0), fill_color)
+	var bar_x: float = tag_w + 4.0
+	var bar_w: float = maxf(48.0, total_w - bar_x)
+	var bar: ProgressBar = _create_bar(p_prefix + "Bar", pos + Vector2(bar_x, 0.0), Vector2(bar_w, 13.0), fill_color)
 	parent.add_child(bar)
 	
-	var val_lbl: Label = _create_label(p_prefix + "ValueLabel", pos + Vector2(24.0, -2.0), Vector2(bar_w, 14.0), "0/100", 8, HORIZONTAL_ALIGNMENT_CENTER)
+	var val_lbl: Label = _create_label(p_prefix + "ValueLabel", pos + Vector2(bar_x, -1.0), Vector2(bar_w, 14.0), "0/100", 8, HORIZONTAL_ALIGNMENT_CENTER)
 	parent.add_child(val_lbl)
 	
-	return {"bar": bar, "val_label": val_lbl}
+	return {"tag_label": tag_lbl, "bar": bar, "val_label": val_lbl}
 
 static func _create_menu_button(p_name: String, p_text: String) -> Button:
 	var btn: Button = Button.new()

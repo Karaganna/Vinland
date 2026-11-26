@@ -4,12 +4,14 @@ extends RefCounted
 
 ## Программная фабрика тестовых данных (Sandbox) без ручной генерации .tres файлов
 
-## Создает тестового Главного Героя с 3 шкалами ресурсов (+ Tension) и базовыми/QTE навыками
+## Создает тестового Главного Героя с единой шкалой «Поток» (+ Напряжение) и фирменным копьем/щитом
 static func create_sandbox_hero() -> CombatantData:
 	var hero: CombatantData = CombatantData.new()
 	hero.combatant_id = "sandbox_hero"
 	hero.display_name = "Главный герой"
 	hero.is_player_controlled = true
+	hero.is_hero = true
+	hero.is_viking = true
 	hero.sprite_color = Color(0.25, 0.55, 0.90, 1.0)
 	
 	var st: CombatStatsData = CombatStatsData.new()
@@ -22,32 +24,30 @@ static func create_sandbox_hero() -> CombatantData:
 	st.crit_multiplier = 1.5
 	hero.stats = st
 	
-	var active_res: Array[BattleTypes.ResourceType] = [
-		BattleTypes.ResourceType.ENERGY,
-		BattleTypes.ResourceType.MANA,
-		BattleTypes.ResourceType.RAGE,
-		BattleTypes.ResourceType.TENSION
-	]
-	hero.active_resources = active_res
+	hero.default_flow_mode = BattleTypes.ResourceType.ENERGY
+	hero.primary_resource = BattleTypes.ResourceType.ENERGY
 	hero.max_energy = 100
-	hero.initial_energy = 60
+	hero.initial_energy = 75
 	hero.max_mana = 100
-	hero.initial_mana = 80
+	hero.initial_mana = 100
 	hero.max_rage = 100
 	hero.initial_rage = 0
+	hero.max_hamingja = 100
+	hero.initial_hamingja = 50
 	hero.max_tension = 100
 	hero.initial_tension = 0
 	hero.ultimate_unlocked = true
 	hero.ultimate_max_tier = BattleTypes.TensionTier.FULL_100
+	hero.enable_low_energy_penalty = false
 	hero.energy_low_threshold_ratio = 0.10
 	hero.energy_low_outgoing_multiplier = 0.5
 	hero.energy_low_incoming_multiplier = 1.5
 	
-	# 1. Обычная бесплатная атака (восстанавливает Энергию)
+	# 1. Базовая бесплатная атака (в режиме Потока-Энергии восполняет +25 Потока)
 	var basic: SkillData = SkillData.new()
 	basic.skill_id = "hero_basic_strike"
 	basic.skill_name = "Быстрый удар"
-	basic.description = "Бесплатная атака клинком. Восстанавливает +25 Энергии."
+	basic.description = "Бесплатная контактная атака. В режиме Энергии восполняет +25 Потока."
 	basic.action_category = BattleTypes.ActionType.ATTACK
 	basic.target_side = BattleTypes.TargetSide.ENEMY
 	basic.resource_type = BattleTypes.ResourceType.ENERGY
@@ -57,120 +57,69 @@ static func create_sandbox_hero() -> CombatantData:
 	basic.base_power = 8
 	basic.power_multiplier = 1.0
 	basic.blockability = BattleTypes.Blockability.FULL_100
+	var basic_tags: Array[BattleTypes.SkillTag] = [BattleTypes.SkillTag.MELEE]
+	basic.tags = basic_tags
 	basic.requires_qte = false
 	hero.basic_attack = basic
 	
-	# 2. Атака мечом с Undertale-style QTE (шкала точности)
-	var precision_qte: QTEConfigData = QTEConfigData.new()
-	precision_qte.qte_type = BattleTypes.QTEType.PRECISION_BAR
-	precision_qte.duration_seconds = 2.6
-	precision_qte.cursor_speed = 1.35
-	precision_qte.success_zone_width = 0.24
-	precision_qte.perfect_zone_width = 0.08
+	# 2. Выпад копьем с QTE Центр
+	var lunge_qte: QTEConfigData = QTEConfigData.new()
+	lunge_qte.qte_type = BattleTypes.QTEType.PRECISION_BAR
+	lunge_qte.duration_seconds = 2.6
+	lunge_qte.cursor_speed = 1.35
+	lunge_qte.success_zone_width = 0.24
+	lunge_qte.perfect_zone_width = 0.08
 	
-	var sword_qte: SkillData = SkillData.new()
-	sword_qte.skill_id = "sword_precision_slash"
-	sword_qte.skill_name = "Рассечение мечом"
-	sword_qte.description = "Удар с QTE-шкалой точности (Undertale-style). Идеальное попадание наносит 1.5x урона."
-	sword_qte.action_category = BattleTypes.ActionType.SKILL
-	sword_qte.target_side = BattleTypes.TargetSide.ENEMY
-	sword_qte.resource_type = BattleTypes.ResourceType.ENERGY
-	sword_qte.resource_cost = 20
-	sword_qte.damage_type = BattleTypes.DamageType.PHYSICAL
-	sword_qte.base_power = 18
-	sword_qte.power_multiplier = 1.15
-	sword_qte.blockability = BattleTypes.Blockability.HIGH_80
-	sword_qte.requires_qte = true
-	sword_qte.qte_config = precision_qte
+	var spear_lunge: SkillData = SkillData.new()
+	spear_lunge.skill_id = "hero_spear_lunge"
+	spear_lunge.skill_name = "Выпад"
+	spear_lunge.description = "Выпад древковым оружием (QTE Центр). Выводит цель из равновесия."
+	spear_lunge.action_category = BattleTypes.ActionType.SKILL
+	spear_lunge.target_side = BattleTypes.TargetSide.ENEMY
+	spear_lunge.resource_type = BattleTypes.ResourceType.ENERGY
+	spear_lunge.resource_cost = 20
+	spear_lunge.damage_type = BattleTypes.DamageType.PHYSICAL
+	spear_lunge.base_power = 18
+	spear_lunge.power_multiplier = 1.15
+	spear_lunge.blockability = BattleTypes.Blockability.HIGH_80
+	var lunge_tags: Array[BattleTypes.SkillTag] = [BattleTypes.SkillTag.MELEE]
+	spear_lunge.tags = lunge_tags
+	spear_lunge.applies_status = true
+	spear_lunge.status_to_apply = BattleTypes.StatusType.UNBALANCED
+	spear_lunge.status_duration_turns = 2
+	spear_lunge.requires_qte = true
+	spear_lunge.qte_config = lunge_qte
 	
-	# 3. Мощный удар с NO_GUARD и GUARD_BREAK
-	var reckless: SkillData = SkillData.new()
-	reckless.skill_id = "reckless_no_guard"
-	reckless.skill_name = "Безрассудный сокрушитель"
-	reckless.description = "Пробивает блок цели (GUARD_BREAK), но оставляет героя открытым (NO_GUARD: x1.75 входящего урона до конца хода)."
-	reckless.action_category = BattleTypes.ActionType.SKILL
-	reckless.target_side = BattleTypes.TargetSide.ENEMY
-	reckless.resource_type = BattleTypes.ResourceType.ENERGY
-	reckless.resource_cost = 25
-	reckless.damage_type = BattleTypes.DamageType.PHYSICAL
-	reckless.base_power = 26
-	reckless.power_multiplier = 1.35
-	reckless.blockability = BattleTypes.Blockability.FULL_100
-	var reckless_tags: Array[BattleTypes.SkillTag] = [
-		BattleTypes.SkillTag.NO_GUARD,
-		BattleTypes.SkillTag.GUARD_BREAK
-	]
-	reckless.tags = reckless_tags
-	reckless.guard_break_ignore_ratio = 1.0
-	reckless.guard_break_bonus_multiplier = 1.30
-	reckless.no_guard_incoming_multiplier = 1.75
-	reckless.no_guard_guaranteed_crit = false
+	# 3. Стойка копья «Держать дистанцию» (INTERCEPT_MELEE)
+	var keep_dist: SkillData = SkillData.new()
+	keep_dist.skill_id = "spear_keep_distance"
+	keep_dist.skill_name = "Держать дистанцию"
+	keep_dist.description = "Стойка древкового оружия: встречает контактную атаку врага контрударом и сбивает равновесие."
+	keep_dist.action_category = BattleTypes.ActionType.SKILL
+	keep_dist.target_side = BattleTypes.TargetSide.SELF
+	keep_dist.resource_type = BattleTypes.ResourceType.ENERGY
+	keep_dist.resource_cost = 15
+	keep_dist.enters_stance = true
+	keep_dist.stance_status = BattleTypes.StatusType.INTERCEPT_MELEE
+	keep_dist.stance_duration_turns = 1
 	
-	# 4. Навык провокации (TAUNT)
-	var taunt: SkillData = SkillData.new()
-	taunt.skill_id = "battle_taunt"
-	taunt.skill_name = "Боевой клич (Таунт)"
-	taunt.description = "Принуждает врагов атаковать этого бойца на протяжении 2 ходов."
-	taunt.action_category = BattleTypes.ActionType.SKILL
-	taunt.target_side = BattleTypes.TargetSide.SELF
-	taunt.resource_type = BattleTypes.ResourceType.ENERGY
-	taunt.resource_cost = 15
-	taunt.damage_type = BattleTypes.DamageType.PHYSICAL
-	taunt.base_power = 0
-	taunt.power_multiplier = 0.0
-	var taunt_tags: Array[BattleTypes.SkillTag] = [BattleTypes.SkillTag.TAUNT]
-	taunt.tags = taunt_tags
-	taunt.applies_status = true
-	taunt.status_to_apply = BattleTypes.StatusType.TAUNT
-	taunt.status_duration_turns = 2
+	# 4. Второе дыхание (самолечение — сжигает часть Ярости, если Поток в режиме RAGE)
+	var second_wind: SkillData = SkillData.new()
+	second_wind.skill_id = "hero_second_wind"
+	second_wind.skill_name = "Второе дыхание"
+	second_wind.description = "Самолечение (+32 HP). В режиме Ярости сжигает часть накопленного Потока."
+	second_wind.action_category = BattleTypes.ActionType.SKILL
+	second_wind.target_side = BattleTypes.TargetSide.SELF
+	second_wind.resource_type = BattleTypes.ResourceType.ENERGY
+	second_wind.resource_cost = 15
+	second_wind.base_heal_amount = 32
+	var sw_tags: Array[BattleTypes.SkillTag] = [BattleTypes.SkillTag.SELF_HEAL_BURNS_RAGE]
+	second_wind.tags = sw_tags
 	
-	# 5. Звуковой удар с ритм-QTE (Falling Keys)
-	var rhythm_qte: QTEConfigData = QTEConfigData.new()
-	rhythm_qte.qte_type = BattleTypes.QTEType.RHYTHM_TRACK
-	rhythm_qte.bpm = 120.0
-	rhythm_qte.note_count = 6
-	var lanes: Array[int] = [0, 1, 2, 3, 1, 2]
-	rhythm_qte.note_lanes = lanes
-	var offsets: Array[float] = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
-	rhythm_qte.note_beat_offsets = offsets
-	
-	var sound_skill: SkillData = SkillData.new()
-	sound_skill.skill_id = "resonant_sound_strike"
-	sound_skill.skill_name = "Резонансная песнь"
-	sound_skill.description = "Звуковая атака за Ману с ритм-QTE (падающие ноты)."
-	sound_skill.action_category = BattleTypes.ActionType.SKILL
-	sound_skill.target_side = BattleTypes.TargetSide.ENEMY
-	sound_skill.resource_type = BattleTypes.ResourceType.MANA
-	sound_skill.resource_cost = 25
-	sound_skill.damage_type = BattleTypes.DamageType.SOUND
-	sound_skill.base_power = 16
-	sound_skill.power_multiplier = 1.2
-	sound_skill.blockability = BattleTypes.Blockability.LOW_40
-	var sound_tags: Array[BattleTypes.SkillTag] = [BattleTypes.SkillTag.SOUND_BASED]
-	sound_skill.tags = sound_tags
-	sound_skill.requires_qte = true
-	sound_skill.qte_config = rhythm_qte
-	
-	# 6. Конвертация Ярости в самолечение
-	var rage_heal: SkillData = SkillData.new()
-	rage_heal.skill_id = "rage_self_heal"
-	rage_heal.skill_name = "Прилив ярости"
-	rage_heal.description = "Конвертирует 50% текущей Ярости в самолечение."
-	rage_heal.action_category = BattleTypes.ActionType.SKILL
-	rage_heal.target_side = BattleTypes.TargetSide.SELF
-	rage_heal.resource_type = BattleTypes.ResourceType.RAGE
-	rage_heal.resource_cost = 0
-	rage_heal.base_power = 0
-	rage_heal.power_multiplier = 0.0
-	var heal_tags: Array[BattleTypes.SkillTag] = [BattleTypes.SkillTag.RAGE_TO_HEAL]
-	rage_heal.tags = heal_tags
-	rage_heal.rage_to_heal_ratio = 0.5
-	rage_heal.base_heal_amount = 10
-	
-	var hero_skills: Array[SkillData] = [sword_qte, reckless, taunt, sound_skill, rage_heal]
+	var hero_skills: Array[SkillData] = [spear_lunge, keep_dist, second_wind]
 	hero.skills = hero_skills
 	
-	# Ультимативная способность (50% / 100% Tension)
+	# Ультимативная способность (50% / 100% Напряжения)
 	var ult_qte: QTEConfigData = QTEConfigData.new()
 	ult_qte.qte_type = BattleTypes.QTEType.PRECISION_BAR
 	ult_qte.duration_seconds = 2.8
@@ -198,7 +147,7 @@ static func create_sandbox_hero() -> CombatantData:
 	ult.qte_config = ult_qte
 	hero.ultimate_skill = ult
 	
-	# Стартовый набор 5 слотов экипировки (Копьё + Щит + Кольчуга морехода) и заглушка рун
+	# Стартовый набор 5 слотов экипировки (Отцовское копьё + Круглый щит + Кольчуга морехода)
 	hero.equipment_loadout = InventorySandboxFactory.create_default_hero_loadout()
 	hero.equipment_modifiers.clear()
 	
@@ -284,7 +233,7 @@ static func create_young_dragon() -> EnemyData:
 	var dragon_parts: Array[EnemyPartData] = [torso, legs, neck]
 	dragon.parts = dragon_parts
 	
-	# 1. Обычная атака когтями
+	# 1. Обычная контактная атака когтями
 	var claw: SkillData = SkillData.new()
 	claw.skill_id = "dragon_claw"
 	claw.skill_name = "Удар когтями"
@@ -294,6 +243,8 @@ static func create_young_dragon() -> EnemyData:
 	claw.base_power = 12
 	claw.power_multiplier = 1.0
 	claw.blockability = BattleTypes.Blockability.FULL_100
+	var claw_tags: Array[BattleTypes.SkillTag] = [BattleTypes.SkillTag.MELEE]
+	claw.tags = claw_tags
 	dragon.basic_attack = claw
 	
 	# 2. GUARD_BREAK удар хвостом
@@ -306,12 +257,15 @@ static func create_young_dragon() -> EnemyData:
 	tail_crush.base_power = 16
 	tail_crush.power_multiplier = 1.15
 	tail_crush.blockability = BattleTypes.Blockability.MEDIUM_60
-	var tail_tags: Array[BattleTypes.SkillTag] = [BattleTypes.SkillTag.GUARD_BREAK]
+	var tail_tags: Array[BattleTypes.SkillTag] = [
+		BattleTypes.SkillTag.MELEE,
+		BattleTypes.SkillTag.GUARD_BREAK
+	]
 	tail_crush.tags = tail_tags
 	tail_crush.guard_break_ignore_ratio = 1.0
 	tail_crush.guard_break_bonus_multiplier = 1.35
 	
-	# 3. Телеграфируемое Огненное дыхание с DbD-скиллчеком
+	# 3. Телеграфируемое Огненное дыхание (полностью гасится щитом при блоке / Скьяльдборге)
 	var breath_qte: QTEConfigData = QTEConfigData.new()
 	breath_qte.qte_type = BattleTypes.QTEType.CIRCULAR_SKILL_CHECK
 	breath_qte.duration_seconds = 2.4
@@ -328,11 +282,18 @@ static func create_young_dragon() -> EnemyData:
 	fire_breath.base_power = 24
 	fire_breath.power_multiplier = 1.35
 	fire_breath.blockability = BattleTypes.Blockability.HIGH_80
-	var breath_tags: Array[BattleTypes.SkillTag] = [BattleTypes.SkillTag.TELEGRAPHED]
+	var breath_tags: Array[BattleTypes.SkillTag] = [
+		BattleTypes.SkillTag.TELEGRAPHED,
+		BattleTypes.SkillTag.DRAGON_FIRE_BREATH
+	]
 	fire_breath.tags = breath_tags
 	fire_breath.is_telegraphed = true
 	fire_breath.telegraph_turns = 1
-	fire_breath.telegraph_warning_text = "Молодой дракон глубоко вдыхает! Готовится к Огненному дыханию (открылась уязвимая Шея)!"
+	fire_breath.telegraph_warning_text = "Молодой дракон глубоко вдыхает! Готовится к Огненному дыханию (открыта Шея; щит полностью гасит дыхание)!"
+	fire_breath.applies_status = true
+	fire_breath.status_to_apply = BattleTypes.StatusType.BURN
+	fire_breath.status_duration_turns = 2
+	fire_breath.status_apply_chance = 0.75
 	fire_breath.requires_qte = true
 	fire_breath.qte_config = breath_qte
 	
@@ -341,13 +302,11 @@ static func create_young_dragon() -> EnemyData:
 	
 	dragon.dialogue_intro = "Перед вами приземляется Молодой дракон! Его чешуя отливает багровым жаром."
 	dragon.dialogue_on_attack = "Дракон рычит и готовит ответный выпад!"
-	dragon.dialogue_on_vow = "Дракон прислушивается к голосу Завета, опустив крылья."
-	dragon.dialogue_pacified = "Молодой дракон склоняет голову и улетает в горы."
 	dragon.dialogue_defeat = "Молодой дракон повержен!"
 	
 	return dragon
 
-## Создает стартовый отряд игрока (до 4 бойцов; сейчас 1 ГГ)
+## Создает стартовый отряд игрока для песочницы (в Фазе 1 — ГГ со шкалой «Поток»)
 static func create_sandbox_player_party(synergy_catalog: Array[WeaponSynergyData] = []) -> Array[Combatant]:
 	var resolved_synergies: Array[WeaponSynergyData] = synergy_catalog
 	if resolved_synergies.is_empty():
@@ -356,7 +315,7 @@ static func create_sandbox_player_party(synergy_catalog: Array[WeaponSynergyData
 	party.append(Combatant.from_combatant_data(create_sandbox_hero(), "sandbox_hero", resolved_synergies))
 	return party
 
-## Создает тестовый отряд противников (сейчас 1 Молодой дракон)
+## Создает тестовый отряд противников (Молодой дракон)
 static func create_sandbox_enemy_party() -> Array[Combatant]:
 	var party: Array[Combatant] = []
 	party.append(Combatant.from_enemy_data(create_young_dragon(), "enemy_1"))

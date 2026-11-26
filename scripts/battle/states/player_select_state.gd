@@ -2,7 +2,7 @@
 class_name PlayerSelectState
 extends BaseBattleState
 
-## Выбор действия, умения, расходника и цели (включая части тела врага) активным бойцом отряда игрока
+## Выбор действия, умения, расходника и цели (врага, части тела или союзника) активным бойцом
 enum SubMenuMode {
 	NONE,
 	SKILL_LIST,
@@ -35,10 +35,10 @@ func enter() -> void:
 		_emit_transition(&"enemy_turn")
 		return
 	
-	# Проверка статусов недееспособности (SLEEP / STAGGER)
+	# Проверка статусов потери хода (SLEEP, FREEZE, STUN, KNOCKED_DOWN, STAGGER)
 	if actor.is_incapacitated():
 		actor.resources.decay_rage_on_idle_or_block()
-		var status_text: String = "спит" if actor.has_status(BattleTypes.StatusType.SLEEP) else "ошеломлён"
+		var status_text: String = actor.get_incapacitation_reason()
 		_emit_log("%s %s и пропускает ход!" % [actor.display_name, status_text])
 		_refresh_ui()
 		_advance_player_or_go_enemy_turn()
@@ -107,6 +107,11 @@ func _on_action_selected(action_type: BattleTypes.ActionType) -> void:
 		BattleTypes.ActionType.ATTACK:
 			_context.pending_action_type = BattleTypes.ActionType.ATTACK
 			_context.pending_skill = actor.basic_attack
+			if actor.has_status(BattleTypes.StatusType.RELOAD_REQUIRED):
+				_context.pending_target = actor
+				_context.pending_target_part = null
+				_emit_transition(&"player_action")
+				return
 			_open_target_selection_or_execute(actor.basic_attack)
 		BattleTypes.ActionType.SKILL:
 			_context.pending_action_type = BattleTypes.ActionType.SKILL
@@ -141,6 +146,10 @@ func _on_action_selected(action_type: BattleTypes.ActionType) -> void:
 func _on_skill_selected(skill: SkillData) -> void:
 	if skill == null:
 		return
+	var actor: Combatant = _context.get_active_player()
+	if actor != null and actor.has_status(BattleTypes.StatusType.RELOAD_REQUIRED) and skill.has_tag(BattleTypes.SkillTag.RANGED_ATTACK):
+		_emit_log("Оружие разряжено! Используйте базовое действие для перезарядки.")
+		return
 	_context.pending_skill = skill
 	_open_target_selection_or_execute(skill)
 
@@ -151,6 +160,11 @@ func _on_item_selected(item: ConsumableItemData) -> void:
 	_context.pending_action_type = BattleTypes.ActionType.ITEM
 	_context.pending_consumable = item
 	_context.pending_skill = null
+	var alive_allies: Array[Combatant] = _context.get_alive_players()
+	if alive_allies.size() > 1 and _context.ui != null:
+		_sub_menu_mode = SubMenuMode.TARGET_SELECT
+		_context.ui.show_ally_selection(alive_allies)
+		return
 	_context.pending_target = actor
 	_context.pending_target_part = null
 	_emit_transition(&"player_action")
@@ -166,6 +180,11 @@ func _on_cancel_requested() -> void:
 		_sub_menu_mode = SubMenuMode.SKILL_LIST
 		if _context.ui != null:
 			_context.ui.show_skill_list(actor)
+		return
+	if _sub_menu_mode == SubMenuMode.TARGET_SELECT and _context.pending_action_type == BattleTypes.ActionType.ITEM and GameManager != null and GameManager.inventory != null:
+		_sub_menu_mode = SubMenuMode.ITEM_LIST
+		if _context.ui != null:
+			_context.ui.show_item_list(GameManager.inventory.get_consumables(true, false))
 		return
 	
 	_sub_menu_mode = SubMenuMode.NONE
@@ -189,6 +208,26 @@ func _open_target_selection_or_execute(skill: SkillData) -> void:
 		_context.pending_target = null
 		_context.pending_target_part = null
 		_emit_transition(&"player_action")
+		return
+	
+	if skill.target_side == BattleTypes.TargetSide.ALLY:
+		var alive_allies: Array[Combatant] = _context.get_alive_players()
+		var exclude_self: bool = skill.enters_stance and skill.stance_status == BattleTypes.StatusType.COVER_ALLY
+		var candidates: Array[Combatant] = []
+		for ally: Combatant in alive_allies:
+			if exclude_self and ally == actor:
+				continue
+			candidates.append(ally)
+		if candidates.is_empty():
+			candidates = alive_allies
+		if candidates.size() == 1:
+			_context.pending_target = candidates[0]
+			_context.pending_target_part = null
+			_emit_transition(&"player_action")
+			return
+		_sub_menu_mode = SubMenuMode.TARGET_SELECT
+		if _context.ui != null:
+			_context.ui.show_ally_selection(candidates)
 		return
 	
 	var alive_enemies: Array[Combatant] = _context.get_alive_enemies()

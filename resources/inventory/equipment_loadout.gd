@@ -308,3 +308,25 @@ func get_passive_tags() -> Array[StringName]:
 			if not tag.is_empty() and not result.has(tag):
 				result.append(tag)
 	return result
+
+## Определяет режим шкалы «Поток» у ГГ по надетому фирменному оружию
+func resolve_hero_flow_mode(fallback_mode: BattleTypes.ResourceType = BattleTypes.ResourceType.ENERGY) -> BattleTypes.ResourceType:
+	for eq: EquipmentItemData in get_equipped_unique_items():
+		if eq != null and eq.sets_hero_flow_mode:
+			return eq.hero_flow_mode
+	return fallback_mode
+
+## Возвращает экипированные предметы с пороговыми пассивками от уровня «Потока»
+func get_flow_threshold_items() -> Array[EquipmentItemData]:
+	var items: Array[EquipmentItemData] = []
+	for eq: EquipmentItemData in get_equipped_unique_items():
+		if eq != null and eq.has_flow_threshold_passive:
+			items.append(eq)
+	return items
+
+## Проверяет, экипирован ли на бойце щит в любой доступной руке
+func has_shield_equipped() -> bool:
+	for eq: EquipmentItemData in get_equipped_unique_items():
+		if eq != null and eq.slot_type == InventoryTypes.EquipmentSlotType.SHIELD:
+			return true
+	return false
