@@ -3,9 +3,24 @@
 [ext_resource type="Script" uid="uid://c47nuyeu6s44" path="res://scripts/village_location.gd" id="1_vloc"]
 [ext_resource type="PackedScene" uid="uid://bguj3ng2ol4p0" path="res://scenes/Player.tscn" id="2_player"]
 [ext_resource type="Script" uid="uid://bg8h5dn4gal2d" path="res://scripts/player.gd" id="3_pscript"]
-[ext_resource type="Texture2D" path="res://assets/locations/00_original.png" id="4_vmap"]
 [ext_resource type="Script" uid="uid://bgilyfwtpg48j" path="res://scripts/interactable_object.gd" id="5_door"]
 [ext_resource type="Script" uid="uid://bokag18f23lb6" path="res://scripts/battle_zone.gd" id="6_bzone"]
+[ext_resource type="Texture2D" path="res://assets/locations/village_parts/01_Background_Ground_Water_Dock.png" id="tex_01_bg"]
+[ext_resource type="Texture2D" path="res://assets/locations/village_parts/02_Main_Viking_Hall.png" id="tex_02_hall"]
+[ext_resource type="Texture2D" path="res://assets/locations/village_parts/03_Snowy_Wooden_House.png" id="tex_03_house"]
+[ext_resource type="Texture2D" path="res://assets/locations/village_parts/04_Blacksmith_Forge.png" id="tex_04_forge"]
+[ext_resource type="Texture2D" path="res://assets/locations/village_parts/05_Market_Stall.png" id="tex_05_market"]
+[ext_resource type="Texture2D" path="res://assets/locations/village_parts/06_Campfire_and_Benches.png" id="tex_06_fire"]
+[ext_resource type="Texture2D" path="res://assets/locations/village_parts/07_Viking_Longship.png" id="tex_07_ship"]
+[ext_resource type="Texture2D" path="res://assets/locations/village_parts/08_Snowy_Pine_Trees.png" id="tex_08_trees"]
+[ext_resource type="Texture2D" path="res://assets/locations/village_parts/09_Wooden_Fence_Long.png" id="tex_09_fence_l"]
+[ext_resource type="Texture2D" path="res://assets/locations/village_parts/10_Wooden_Fence_Short.png" id="tex_10_fence_s"]
+[ext_resource type="Texture2D" path="res://assets/locations/village_parts/11_Stone_Wall.png" id="tex_11_stone"]
+[ext_resource type="Texture2D" path="res://assets/locations/village_parts/12_Lantern_Post_clean.png" id="tex_12_lantern"]
+[ext_resource type="Texture2D" path="res://assets/locations/village_parts/13_Wooden_Signposts.png" id="tex_13_sign"]
+[ext_resource type="Texture2D" path="res://assets/locations/village_parts/15_Barrels_Crates_Wheel.png" id="tex_15_barrels"]
+[ext_resource type="Texture2D" path="res://assets/locations/village_parts/16_Snowy_Rocks_Bushes.png" id="tex_16_rocks"]
+[ext_resource type="Texture2D" path="res://assets/locations/village_parts/17_Viking_Banners.png" id="tex_17_banner"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_door"]
 size = Vector2(36, 14)
@@ -19,78 +34,108 @@ script = ExtResource("1_vloc")
 [node name="GroundLayer" type="Node2D" parent="."]
 z_index = -10
 
+[node name="NightBackdrop" type="ColorRect" parent="GroundLayer"]
+offset_right = 1672.0
+offset_bottom = 941.0
+mouse_filter = 2
+color = Color(0.086, 0.098, 0.18, 1)
+
+[node name="SnowPinholeBackingTop" type="ColorRect" parent="GroundLayer"]
+offset_left = 260.0
+offset_top = 112.0
+offset_right = 1440.0
+offset_bottom = 210.0
+mouse_filter = 2
+color = Color(0.84, 0.87, 0.94, 1)
+
+[node name="SnowPinholeBacking" type="ColorRect" parent="GroundLayer"]
+offset_left = 88.0
+offset_top = 210.0
+offset_right = 1588.0
+offset_bottom = 758.0
+mouse_filter = 2
+color = Color(0.84, 0.87, 0.94, 1)
+
+[node name="PierSnowBacking" type="ColorRect" parent="GroundLayer"]
+offset_left = 876.0
+offset_top = 758.0
+offset_right = 1076.0
+offset_bottom = 924.0
+mouse_filter = 2
+color = Color(0.82, 0.85, 0.92, 1)
+
 [node name="MapBackground" type="Sprite2D" parent="GroundLayer"]
 texture_filter = 1
-texture = ExtResource("4_vmap")
+scale = Vector2(2.3352, 2.2405)
+texture = ExtResource("tex_01_bg")
 centered = false
+region_enabled = true
+region_rect = Rect2(24, 30, 716, 420)
 
 [node name="WorldCollisions" type="StaticBody2D" parent="."]
 
 [node name="TopPalisade" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(0, 0, 1672, 0, 1672, 290, 1540, 290, 1490, 225, 1155, 225, 1095, 238, 1020, 200, 636, 200, 565, 236, 492, 225, 196, 225, 148, 265, 0, 265)
+polygon = PackedVector2Array(0, 0, 1672, 0, 1672, 240, 1560, 240, 1510, 162, 1140, 162, 1070, 180, 620, 180, 540, 162, 170, 162, 112, 240, 0, 240)
 
 [node name="LeftPalisade" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(0, 265, 148, 265, 148, 790, 0, 790)
+polygon = PackedVector2Array(0, 240, 112, 240, 112, 760, 0, 760)
 
 [node name="RightPalisade" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(1536, 290, 1672, 290, 1672, 790, 1536, 790)
+polygon = PackedVector2Array(1560, 240, 1672, 240, 1672, 770, 1560, 770)
 
 [node name="BottomLeftPalisadeAndShore" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(0, 786, 435, 786, 490, 795, 590, 795, 655, 782, 760, 782, 810, 768, 892, 768, 892, 941, 0, 941)
+polygon = PackedVector2Array(0, 760, 445, 760, 480, 772, 874, 772, 874, 941, 0, 941)
 
-[node name="BottomRightShoreAndDrakkar" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(982, 768, 1100, 768, 1260, 765, 1536, 765, 1672, 765, 1672, 941, 982, 941)
+[node name="BottomRightShore" type="CollisionPolygon2D" parent="WorldCollisions"]
+polygon = PackedVector2Array(1078, 772, 1672, 772, 1672, 941, 1078, 941)
 
 [node name="PierEndBarrier" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(888, 928, 986, 928, 986, 941, 888, 941)
+polygon = PackedVector2Array(874, 926, 1078, 926, 1078, 941, 874, 941)
 
 [node name="HeroHouseCollision" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(172, 266, 202, 266, 202, 236, 486, 236, 486, 330, 362, 330, 362, 320, 318, 320, 318, 330, 172, 330)
-
-[node name="HeroHousePropsLeft" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(232, 314, 262, 314, 262, 344, 232, 344)
-
-[node name="HeroHousePropsRight" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(372, 312, 432, 312, 432, 344, 372, 344)
+polygon = PackedVector2Array(166, 304, 204, 304, 204, 252, 476, 252, 476, 324, 458, 324, 458, 338, 376, 338, 376, 324, 362, 324, 362, 316, 318, 316, 318, 324, 272, 324, 272, 338, 232, 338, 232, 324, 166, 324)
 
 [node name="CentralLonghouseCollision" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(574, 240, 640, 240, 640, 200, 1016, 200, 1016, 244, 1054, 244, 1054, 334, 878, 334, 878, 324, 798, 324, 798, 334, 574, 334)
+polygon = PackedVector2Array(608, 286, 628, 286, 628, 228, 1056, 228, 1056, 286, 1076, 286, 1076, 334, 882, 334, 882, 324, 802, 324, 802, 334, 608, 334)
 
-[node name="UpperRightHouseAndGardenCollision" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(1166, 236, 1484, 236, 1484, 314, 1606, 314, 1606, 462, 1458, 462, 1458, 488, 1396, 488, 1396, 462, 1378, 462, 1378, 348, 1226, 348, 1226, 334, 1166, 334)
+[node name="SignpostCollision" type="CollisionPolygon2D" parent="WorldCollisions"]
+polygon = PackedVector2Array(582, 328, 606, 328, 606, 344, 582, 344)
+
+[node name="UpperRightHouseCollision" type="CollisionPolygon2D" parent="WorldCollisions"]
+polygon = PackedVector2Array(1178, 256, 1474, 256, 1474, 334, 1456, 334, 1456, 349, 1364, 349, 1364, 334, 1254, 334, 1254, 349, 1210, 349, 1210, 334, 1178, 334)
+
+[node name="StoneGardenWallCollision" type="CollisionPolygon2D" parent="WorldCollisions"]
+polygon = PackedVector2Array(1364, 444, 1560, 444, 1560, 464, 1364, 464)
 
 [node name="BlacksmithCollision" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(166, 562, 464, 562, 464, 578, 576, 578, 576, 668, 166, 668)
+polygon = PackedVector2Array(176, 576, 560, 576, 560, 640, 598, 640, 598, 664, 176, 664)
 
-[node name="BlacksmithFrontWorkbench" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(224, 704, 284, 704, 284, 742, 224, 742)
+[node name="BlacksmithCrateCollision" type="CollisionPolygon2D" parent="WorldCollisions"]
+polygon = PackedVector2Array(228, 694, 282, 694, 282, 716, 228, 716)
 
-[node name="SnowBoulderLeft" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(496, 444, 556, 444, 556, 486, 496, 486)
+[node name="BannerHallLeftCollision" type="CollisionPolygon2D" parent="WorldCollisions"]
+polygon = PackedVector2Array(536, 230, 556, 230, 556, 244, 536, 244)
 
-[node name="CampfirePitCollision" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(796, 488, 876, 488, 898, 512, 898, 546, 874, 568, 798, 568, 774, 546, 774, 512)
+[node name="BannerHallRightCollision" type="CollisionPolygon2D" parent="WorldCollisions"]
+polygon = PackedVector2Array(1106, 230, 1126, 230, 1126, 244, 1106, 244)
 
-[node name="BenchNW" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(738, 460, 764, 466, 742, 510, 718, 504)
+[node name="BannerShoreRightCollision" type="CollisionPolygon2D" parent="WorldCollisions"]
+polygon = PackedVector2Array(1508, 684, 1528, 684, 1528, 698, 1508, 698)
 
-[node name="BenchNE" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(910, 466, 934, 458, 956, 504, 932, 512)
+[node name="SnowBoulderLeftCollision" type="CollisionPolygon2D" parent="WorldCollisions"]
+polygon = PackedVector2Array(490, 464, 558, 464, 558, 486, 490, 486)
 
-[node name="BenchSW" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(718, 530, 742, 522, 764, 570, 740, 578)
-
-[node name="BenchSE" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(932, 522, 956, 530, 934, 578, 910, 570)
+[node name="CampfireGroupCollision" type="CollisionPolygon2D" parent="WorldCollisions"]
+polygon = PackedVector2Array(748, 458, 936, 458, 964, 486, 964, 554, 936, 580, 748, 580, 720, 554, 720, 486)
 
 [node name="LanternPostCollision" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(1116, 542, 1140, 542, 1140, 560, 1116, 560)
+polygon = PackedVector2Array(1117, 544, 1142, 544, 1142, 560, 1117, 560)
 
 [node name="MarketStallCollision" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(1138, 562, 1408, 562, 1408, 634, 1138, 634)
+polygon = PackedVector2Array(1110, 608, 1140, 608, 1140, 574, 1412, 574, 1412, 604, 1458, 604, 1458, 632, 1110, 632)
 
-[node name="SnowRocksNearPier" type="CollisionPolygon2D" parent="WorldCollisions"]
-polygon = PackedVector2Array(1044, 704, 1120, 704, 1120, 738, 1044, 738)
+[node name="PierRocksCollision" type="CollisionPolygon2D" parent="WorldCollisions"]
+polygon = PackedVector2Array(1106, 718, 1170, 718, 1170, 744, 1106, 744)
 
 [node name="Triggers" type="Node2D" parent="."]
 
@@ -108,7 +153,7 @@ show_prompt_hint = false
 shape = SubResource("RectangleShape2D_door")
 
 [node name="TempRedTestBattleZone" type="Area2D" parent="Triggers"]
-position = Vector2(1030, 635)
+position = Vector2(695, 680)
 script = ExtResource("6_bzone")
 min_encounter_seconds = 0.5
 max_encounter_seconds = 0.8
@@ -132,117 +177,403 @@ limit_right = 1672
 limit_bottom = 941
 editor_draw_limits = true
 
-[node name="OcclusionOverlays" type="Node2D" parent="YSortWorld"]
+[node name="Buildings" type="Node2D" parent="YSortWorld"]
 y_sort_enabled = true
 
-[node name="HeroHouseRoofOverlay" type="Polygon2D" parent="YSortWorld/OcclusionOverlays"]
+[node name="HeroHouse" type="Sprite2D" parent="YSortWorld/Buildings"]
 texture_filter = 1
-position = Vector2(0, 296)
-texture = ExtResource("4_vmap")
-polygon = PackedVector2Array(196, -176, 482, -176, 482, -24, 196, -24)
-uv = PackedVector2Array(196, 120, 482, 120, 482, 272, 196, 272)
+position = Vector2(340, 297)
+scale = Vector2(0.92, 0.92)
+texture = ExtResource("tex_03_house")
+offset = Vector2(0, -104.15)
+region_enabled = true
+region_rect = Rect2(13, 6, 322, 297)
 
-[node name="CentralLonghouseRoofOverlay" type="Polygon2D" parent="YSortWorld/OcclusionOverlays"]
+[node name="CentralLonghouse" type="Sprite2D" parent="YSortWorld/Buildings"]
 texture_filter = 1
-position = Vector2(0, 298)
-texture = ExtResource("4_vmap")
-polygon = PackedVector2Array(610, -62, 838, -276, 1052, -62, 1020, -32, 644, -32)
-uv = PackedVector2Array(610, 236, 838, 22, 1052, 236, 1020, 266, 644, 266)
+position = Vector2(842, 307)
+texture = ExtResource("tex_02_hall")
+offset = Vector2(0, -132.5)
+region_enabled = true
+region_rect = Rect2(13, 9, 468, 329)
 
-[node name="UpperRightHouseOverlay" type="Polygon2D" parent="YSortWorld/OcclusionOverlays"]
+[node name="UpperRightHouse" type="Sprite2D" parent="YSortWorld/Buildings"]
 texture_filter = 1
-position = Vector2(0, 298)
-texture = ExtResource("4_vmap")
-polygon = PackedVector2Array(1158, -176, 1490, -176, 1490, -26, 1158, -26)
-uv = PackedVector2Array(1158, 122, 1490, 122, 1490, 272, 1158, 272)
+position = Vector2(1326, 307)
+texture = ExtResource("tex_03_house")
+offset = Vector2(0, -106.5)
+region_enabled = true
+region_rect = Rect2(13, 6, 322, 297)
 
-[node name="BlacksmithRoofOverlay" type="Polygon2D" parent="YSortWorld/OcclusionOverlays"]
+[node name="BlacksmithForge" type="Sprite2D" parent="YSortWorld/Buildings"]
 texture_filter = 1
-position = Vector2(0, 630)
-texture = ExtResource("4_vmap")
-polygon = PackedVector2Array(148, -234, 480, -234, 480, -140, 586, -140, 586, 26, 162, 26, 148, -64)
-uv = PackedVector2Array(148, 396, 480, 396, 480, 490, 586, 490, 586, 656, 162, 656, 148, 566)
+position = Vector2(368, 637)
+scale = Vector2(1.15, 1.15)
+texture = ExtResource("tex_04_forge")
+offset = Vector2(0, -85.52)
+region_enabled = true
+region_rect = Rect2(29, 2, 360, 226)
 
-[node name="BlacksmithWorkbenchOverlay" type="Polygon2D" parent="YSortWorld/OcclusionOverlays"]
+[node name="MarketStall" type="Sprite2D" parent="YSortWorld/Buildings"]
 texture_filter = 1
-position = Vector2(0, 708)
-texture = ExtResource("4_vmap")
-polygon = PackedVector2Array(220, -24, 288, -24, 288, 34, 220, 34)
-uv = PackedVector2Array(220, 684, 288, 684, 288, 742, 220, 742)
+position = Vector2(1276, 605)
+scale = Vector2(0.95, 0.95)
+texture = ExtResource("tex_05_market")
+offset = Vector2(0, -49.08)
+region_enabled = true
+region_rect = Rect2(13, 16, 301, 163)
 
-[node name="SnowBoulderLeftOverlay" type="Polygon2D" parent="YSortWorld/OcclusionOverlays"]
-texture_filter = 1
-position = Vector2(0, 452)
-texture = ExtResource("4_vmap")
-polygon = PackedVector2Array(492, -28, 560, -28, 560, 34, 492, 34)
-uv = PackedVector2Array(492, 424, 560, 424, 560, 486, 492, 486)
+[node name="Props" type="Node2D" parent="YSortWorld"]
+y_sort_enabled = true
 
-[node name="CampfirePitOverlay" type="Polygon2D" parent="YSortWorld/OcclusionOverlays"]
+[node name="CampfireAndBenches" type="Sprite2D" parent="YSortWorld/Props"]
 texture_filter = 1
-position = Vector2(0, 528)
-texture = ExtResource("4_vmap")
-polygon = PackedVector2Array(770, -84, 902, -84, 902, 40, 770, 40)
-uv = PackedVector2Array(770, 444, 902, 444, 902, 568, 770, 568)
+position = Vector2(842, 493)
+scale = Vector2(0.95, 0.95)
+texture = ExtResource("tex_06_fire")
+offset = Vector2(0, 25.34)
+region_enabled = true
+region_rect = Rect2(11, 14, 264, 137)
 
-[node name="BenchNWOverlay" type="Polygon2D" parent="YSortWorld/OcclusionOverlays"]
+[node name="LanternPost" type="Sprite2D" parent="YSortWorld/Props"]
 texture_filter = 1
-position = Vector2(0, 476)
-texture = ExtResource("4_vmap")
-polygon = PackedVector2Array(714, -24, 768, -24, 768, 38, 714, 38)
-uv = PackedVector2Array(714, 452, 768, 452, 768, 514, 714, 514)
+position = Vector2(1106, 533)
+texture = ExtResource("tex_12_lantern")
+offset = Vector2(0, -43.5)
+region_enabled = true
+region_rect = Rect2(13, 11, 87, 145)
 
-[node name="BenchNEOverlay" type="Polygon2D" parent="YSortWorld/OcclusionOverlays"]
+[node name="WoodenSignpost" type="Sprite2D" parent="YSortWorld/Props"]
 texture_filter = 1
-position = Vector2(0, 476)
-texture = ExtResource("4_vmap")
-polygon = PackedVector2Array(906, -24, 960, -24, 960, 38, 906, 38)
-uv = PackedVector2Array(906, 452, 960, 452, 960, 514, 906, 514)
+position = Vector2(594, 315)
+scale = Vector2(0.95, 0.95)
+texture = ExtResource("tex_13_sign")
+offset = Vector2(0, -29.08)
+region_enabled = true
+region_rect = Rect2(5, 0, 62, 119)
 
-[node name="BenchSWOverlay" type="Polygon2D" parent="YSortWorld/OcclusionOverlays"]
+[node name="BannerHallLeft" type="Sprite2D" parent="YSortWorld/Props"]
 texture_filter = 1
-position = Vector2(0, 544)
-texture = ExtResource("4_vmap")
-polygon = PackedVector2Array(714, -26, 768, -26, 768, 38, 714, 38)
-uv = PackedVector2Array(714, 518, 768, 518, 768, 582, 714, 582)
+position = Vector2(546, 215)
+scale = Vector2(0.9, 0.9)
+texture = ExtResource("tex_17_banner")
+offset = Vector2(0, -59.5)
+region_enabled = true
+region_rect = Rect2(16, 18, 61, 183)
 
-[node name="BenchSEOverlay" type="Polygon2D" parent="YSortWorld/OcclusionOverlays"]
+[node name="BannerHallRight" type="Sprite2D" parent="YSortWorld/Props"]
 texture_filter = 1
-position = Vector2(0, 544)
-texture = ExtResource("4_vmap")
-polygon = PackedVector2Array(906, -26, 960, -26, 960, 38, 906, 38)
-uv = PackedVector2Array(906, 518, 960, 518, 960, 582, 906, 582)
+position = Vector2(1116, 215)
+scale = Vector2(0.9, 0.9)
+texture = ExtResource("tex_17_banner")
+offset = Vector2(0, -59.5)
+region_enabled = true
+region_rect = Rect2(16, 18, 61, 183)
 
-[node name="LanternPostOverlay" type="Polygon2D" parent="YSortWorld/OcclusionOverlays"]
+[node name="BannerShoreRight" type="Sprite2D" parent="YSortWorld/Props"]
 texture_filter = 1
-position = Vector2(0, 526)
-texture = ExtResource("4_vmap")
-polygon = PackedVector2Array(1066, -136, 1156, -136, 1156, 34, 1114, 34, 1114, -34, 1066, -34)
-uv = PackedVector2Array(1066, 390, 1156, 390, 1156, 560, 1114, 560, 1114, 492, 1066, 492)
+position = Vector2(1518, 669)
+scale = Vector2(0.9, 0.9)
+texture = ExtResource("tex_17_banner")
+offset = Vector2(0, -59.5)
+region_enabled = true
+region_rect = Rect2(16, 18, 61, 183)
 
-[node name="MarketStallOverlay" type="Polygon2D" parent="YSortWorld/OcclusionOverlays"]
+[node name="HeroHouseSideBarrels" type="Sprite2D" parent="YSortWorld/Props"]
 texture_filter = 1
-position = Vector2(0, 598)
-texture = ExtResource("4_vmap")
-polygon = PackedVector2Array(1136, -154, 1382, -154, 1382, -78, 1412, -78, 1412, 36, 1136, 36)
-uv = PackedVector2Array(1136, 444, 1382, 444, 1382, 520, 1412, 520, 1412, 634, 1136, 634)
+position = Vector2(182, 305)
+texture = ExtResource("tex_15_barrels")
+offset = Vector2(0, 3.5)
+region_enabled = true
+region_rect = Rect2(22, 11, 48, 51)
 
-[node name="SnowRocksNearPierOverlay" type="Polygon2D" parent="YSortWorld/OcclusionOverlays"]
+[node name="SnowBoulderLeft" type="Sprite2D" parent="YSortWorld/Props"]
 texture_filter = 1
-position = Vector2(0, 706)
-texture = ExtResource("4_vmap")
-polygon = PackedVector2Array(1040, -24, 1124, -24, 1124, 32, 1040, 32)
-uv = PackedVector2Array(1040, 682, 1124, 682, 1124, 738, 1040, 738)
+position = Vector2(524, 459)
+texture = ExtResource("tex_16_rocks")
+offset = Vector2(0, 6)
+region_enabled = true
+region_rect = Rect2(23, 10, 75, 46)
 
-[node name="BottomLeftPalisadeOverlay" type="Polygon2D" parent="YSortWorld/OcclusionOverlays"]
+[node name="BlacksmithFrontCrate" type="Sprite2D" parent="YSortWorld/Props"]
 texture_filter = 1
-position = Vector2(0, 768)
-texture = ExtResource("4_vmap")
-polygon = PackedVector2Array(0, -36, 440, -36, 490, -43, 595, -43, 655, -30, 765, -30, 765, 127, 0, 127)
-uv = PackedVector2Array(0, 732, 440, 732, 490, 725, 595, 725, 655, 738, 765, 738, 765, 895, 0, 895)
+position = Vector2(255, 687)
+texture = ExtResource("tex_15_barrels")
+offset = Vector2(0, 4)
+region_enabled = true
+region_rect = Rect2(233, 63, 58, 50)
 
-[node name="DrakkarOverlay" type="Polygon2D" parent="YSortWorld/OcclusionOverlays"]
+[node name="BlacksmithWheel" type="Sprite2D" parent="YSortWorld/Props"]
 texture_filter = 1
-position = Vector2(0, 820)
-texture = ExtResource("4_vmap")
-polygon = PackedVector2Array(1098, -40, 1255, -40, 1255, -142, 1415, -142, 1415, -40, 1565, -40, 1565, 90, 1098, 90)
-uv = PackedVector2Array(1098, 780, 1255, 780, 1255, 678, 1415, 678, 1415, 780, 1565, 780, 1565, 910, 1098, 910)
+position = Vector2(576, 635)
+scale = Vector2(0.9, 0.9)
+texture = ExtResource("tex_15_barrels")
+offset = Vector2(0, -1)
+region_enabled = true
+region_rect = Rect2(151, 48, 69, 66)
+
+[node name="MarketSideBucket" type="Sprite2D" parent="YSortWorld/Props"]
+texture_filter = 1
+position = Vector2(1126, 603)
+texture = ExtResource("tex_15_barrels")
+offset = Vector2(0, 7)
+region_enabled = true
+region_rect = Rect2(252, 14, 36, 44)
+
+[node name="MarketSideBarrel" type="Sprite2D" parent="YSortWorld/Props"]
+texture_filter = 1
+position = Vector2(1438, 601)
+texture = ExtResource("tex_15_barrels")
+offset = Vector2(0, 2)
+region_enabled = true
+region_rect = Rect2(89, 6, 49, 54)
+
+[node name="GardenSnowBush" type="Sprite2D" parent="YSortWorld/Props"]
+texture_filter = 1
+position = Vector2(1435, 481)
+texture = ExtResource("tex_16_rocks")
+offset = Vector2(0, 1.5)
+region_enabled = true
+region_rect = Rect2(39, 75, 55, 55)
+
+[node name="PierSnowRocks" type="Sprite2D" parent="YSortWorld/Props"]
+texture_filter = 1
+position = Vector2(1138, 715)
+scale = Vector2(1.1, 1.1)
+texture = ExtResource("tex_16_rocks")
+offset = Vector2(0, 3.55)
+region_enabled = true
+region_rect = Rect2(183, 84, 61, 46)
+
+[node name="Perimeter" type="Node2D" parent="YSortWorld"]
+y_sort_enabled = true
+
+[node name="NorthFence1" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(165, 121)
+texture = ExtResource("tex_09_fence_l")
+offset = Vector2(0, -18.5)
+region_enabled = true
+region_rect = Rect2(11, 19, 275, 95)
+
+[node name="NorthFence2" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(430, 121)
+texture = ExtResource("tex_09_fence_l")
+offset = Vector2(0, -18.5)
+region_enabled = true
+region_rect = Rect2(11, 19, 275, 95)
+
+[node name="NorthFence3" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(695, 121)
+texture = ExtResource("tex_09_fence_l")
+offset = Vector2(0, -18.5)
+region_enabled = true
+region_rect = Rect2(11, 19, 275, 95)
+
+[node name="NorthFence4" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(960, 121)
+texture = ExtResource("tex_09_fence_l")
+offset = Vector2(0, -18.5)
+region_enabled = true
+region_rect = Rect2(11, 19, 275, 95)
+
+[node name="NorthFence5" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(1225, 121)
+texture = ExtResource("tex_09_fence_l")
+offset = Vector2(0, -18.5)
+region_enabled = true
+region_rect = Rect2(11, 19, 275, 95)
+
+[node name="NorthFence6" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(1490, 121)
+texture = ExtResource("tex_09_fence_l")
+offset = Vector2(0, -18.5)
+region_enabled = true
+region_rect = Rect2(11, 19, 275, 95)
+
+[node name="LeftUpperFence" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(74, 218)
+scale = Vector2(0.9, 0.9)
+texture = ExtResource("tex_10_fence_s")
+offset = Vector2(0, -12)
+region_enabled = true
+region_rect = Rect2(9, 10, 204, 88)
+
+[node name="LeftMidFence" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(68, 388)
+scale = Vector2(0.9, 0.9)
+texture = ExtResource("tex_10_fence_s")
+offset = Vector2(0, -12)
+region_enabled = true
+region_rect = Rect2(9, 10, 204, 88)
+
+[node name="RightUpperFence" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(1598, 218)
+scale = Vector2(0.9, 0.9)
+texture = ExtResource("tex_10_fence_s")
+offset = Vector2(0, -12)
+region_enabled = true
+region_rect = Rect2(9, 10, 204, 88)
+
+[node name="RightLowerFence" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(1594, 558)
+scale = Vector2(0.9, 0.9)
+texture = ExtResource("tex_10_fence_s")
+offset = Vector2(0, -12)
+region_enabled = true
+region_rect = Rect2(9, 10, 204, 88)
+
+[node name="SouthWestFence1" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(160, 739)
+texture = ExtResource("tex_09_fence_l")
+offset = Vector2(0, -18.5)
+region_enabled = true
+region_rect = Rect2(11, 19, 275, 95)
+
+[node name="SouthWestFence2" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(365, 739)
+scale = Vector2(0.9, 0.9)
+texture = ExtResource("tex_10_fence_s")
+offset = Vector2(0, -12)
+region_enabled = true
+region_rect = Rect2(9, 10, 204, 88)
+
+[node name="StoneGardenWall" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(1462, 435)
+scale = Vector2(0.9, 0.9)
+texture = ExtResource("tex_11_stone")
+offset = Vector2(0, -2)
+region_enabled = true
+region_rect = Rect2(7, 23, 240, 68)
+
+[node name="PineNW1" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(142, 198)
+scale = Vector2(0.95, 0.95)
+texture = ExtResource("tex_08_trees")
+offset = Vector2(0, -64.58)
+region_enabled = true
+region_rect = Rect2(170, 25, 106, 194)
+
+[node name="PineNW2" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(248, 135)
+texture = ExtResource("tex_08_trees")
+offset = Vector2(0, -43)
+region_enabled = true
+region_rect = Rect2(373, 6, 89, 146)
+
+[node name="PineHallLeft1" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(492, 185)
+scale = Vector2(0.9, 0.9)
+texture = ExtResource("tex_08_trees")
+offset = Vector2(0, -79.5)
+region_enabled = true
+region_rect = Rect2(13, 8, 156, 227)
+
+[node name="PineHallLeft2" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(612, 148)
+texture = ExtResource("tex_08_trees")
+offset = Vector2(0, -41.5)
+region_enabled = true
+region_rect = Rect2(277, 64, 82, 143)
+
+[node name="PineHallRight1" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(1066, 148)
+texture = ExtResource("tex_08_trees")
+offset = Vector2(0, -41.5)
+region_enabled = true
+region_rect = Rect2(277, 64, 82, 143)
+
+[node name="PineHallRight2" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(1152, 188)
+scale = Vector2(0.95, 0.95)
+texture = ExtResource("tex_08_trees")
+offset = Vector2(0, -57.08)
+region_enabled = true
+region_rect = Rect2(471, 15, 114, 179)
+
+[node name="PineNE1" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(1465, 138)
+texture = ExtResource("tex_08_trees")
+offset = Vector2(0, -43)
+region_enabled = true
+region_rect = Rect2(373, 6, 89, 146)
+
+[node name="PineNE2" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(1548, 268)
+scale = Vector2(0.95, 0.95)
+texture = ExtResource("tex_08_trees")
+offset = Vector2(0, -64.58)
+region_enabled = true
+region_rect = Rect2(170, 25, 106, 194)
+
+[node name="PineWestMid" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(84, 533)
+scale = Vector2(0.9, 0.9)
+texture = ExtResource("tex_08_trees")
+offset = Vector2(0, -79.5)
+region_enabled = true
+region_rect = Rect2(13, 8, 156, 227)
+
+[node name="PineWestShore" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(88, 725)
+scale = Vector2(0.95, 0.95)
+texture = ExtResource("tex_08_trees")
+offset = Vector2(0, -57.08)
+region_enabled = true
+region_rect = Rect2(471, 15, 114, 179)
+
+[node name="PineSouthSapling1" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(488, 755)
+texture = ExtResource("tex_08_trees")
+offset = Vector2(0, -6)
+region_enabled = true
+region_rect = Rect2(385, 166, 72, 70)
+
+[node name="PineSouthSapling2" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(582, 765)
+texture = ExtResource("tex_08_trees")
+offset = Vector2(0, -6)
+region_enabled = true
+region_rect = Rect2(385, 166, 72, 70)
+
+[node name="PineEastShore" type="Sprite2D" parent="YSortWorld/Perimeter"]
+texture_filter = 1
+position = Vector2(1586, 719)
+scale = Vector2(0.9, 0.9)
+texture = ExtResource("tex_08_trees")
+offset = Vector2(0, -79.5)
+region_enabled = true
+region_rect = Rect2(13, 8, 156, 227)
+
+[node name="Drakkar" type="Sprite2D" parent="YSortWorld"]
+texture_filter = 1
+position = Vector2(1358, 853)
+scale = Vector2(1.15, 1.15)
+texture = ExtResource("tex_07_ship")
+offset = Vector2(0, -54.78)
+region_enabled = true
+region_rect = Rect2(22, 14, 378, 240)

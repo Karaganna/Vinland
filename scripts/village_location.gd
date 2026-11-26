@@ -48,11 +48,18 @@ func _transform_control_rect(ctrl: Control, xform: Transform2D) -> Rect2:
 	var p1: Vector2 = xform * ctrl.size
 	return Rect2(p0.min(p1), (p1 - p0).abs())
 
+func _get_sprite_local_size(sprite: Sprite2D) -> Vector2:
+	if sprite.region_enabled:
+		return sprite.region_rect.size
+	if sprite.texture != null:
+		return sprite.texture.get_size()
+	return Vector2.ZERO
+
 func _get_local_map_bounds() -> Rect2:
 	var map_sprite: Sprite2D = get_node_or_null("GroundLayer/MapBackground") as Sprite2D
 	if map_sprite != null and map_sprite.texture != null:
-		var tex_size: Vector2 = map_sprite.texture.get_size()
-		var origin: Vector2 = -tex_size / 2.0 if map_sprite.centered else Vector2.ZERO
+		var tex_size: Vector2 = _get_sprite_local_size(map_sprite)
+		var origin: Vector2 = (-tex_size / 2.0 if map_sprite.centered else Vector2.ZERO) + map_sprite.offset
 		var xform: Transform2D = map_sprite.get_transform()
 		var ground_layer: Node2D = get_node_or_null("GroundLayer") as Node2D
 		if ground_layer != null:
@@ -69,8 +76,8 @@ func _get_local_map_bounds() -> Rect2:
 func _get_global_map_bounds() -> Rect2:
 	var map_sprite: Sprite2D = get_node_or_null("GroundLayer/MapBackground") as Sprite2D
 	if map_sprite != null and map_sprite.texture != null:
-		var tex_size: Vector2 = map_sprite.texture.get_size()
-		var origin: Vector2 = -tex_size / 2.0 if map_sprite.centered else Vector2.ZERO
+		var tex_size: Vector2 = _get_sprite_local_size(map_sprite)
+		var origin: Vector2 = (-tex_size / 2.0 if map_sprite.centered else Vector2.ZERO) + map_sprite.offset
 		var xform: Transform2D = map_sprite.get_global_transform()
 		var p0: Vector2 = xform * origin
 		var p1: Vector2 = xform * (origin + tex_size)
@@ -180,7 +187,7 @@ func _setup_temp_test_battle_zone() -> void:
 	test_zone = BattleZone.new()
 	test_zone.name = "TempRedTestBattleZone"
 	test_zone.zone_name = "Тестовая зона боя"
-	test_zone.position = Vector2(1030.0, 635.0)
+	test_zone.position = Vector2(695.0, 680.0)
 	test_zone.zone_size = Vector2(140.0, 96.0)
 	test_zone.use_time_based_encounters = true
 	test_zone.min_encounter_seconds = 0.5
