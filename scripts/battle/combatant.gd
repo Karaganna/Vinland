@@ -231,6 +231,14 @@ func is_alive() -> bool:
 func has_shield_equipped() -> bool:
 	return equipment_loadout != null and equipment_loadout.has_shield_equipped()
 
+func get_shield_defense_bonus() -> int:
+	return equipment_loadout.get_shield_defense_bonus() if equipment_loadout != null else 0
+
+func get_shield_block_chances() -> Dictionary:
+	if equipment_loadout != null:
+		return equipment_loadout.get_shield_block_chances()
+	return {"has_shield": false, "enhanced_chance": 0.0, "full_chance": 0.0}
+
 func get_base_attack_without_rage() -> int:
 	var base_val: int = stats.attack
 	if equipment_loadout != null:

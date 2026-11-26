@@ -200,6 +200,10 @@ func _resolve_enemy_attack(def_mult: float, qte_tier: String, ham_delta: int) ->
 		block_tag = " [ЩИТ ПОЛНОСТЬЮ ГАСИТ ДЫХАНИЕ!]"
 	elif bool(calc.get("guard_broken", false)):
 		block_tag = " [ПРОБИТИЕ БЛОКА!]"
+	elif bool(calc.get("shield_full_proc", false)):
+		block_tag = " [ПОЛНЫЙ БЛОК ЩИТОМ!]"
+	elif bool(calc.get("shield_enhanced_proc", false)):
+		block_tag = " [УСИЛЕННЫЙ БЛОК ЩИТОМ %d%%]" % block_pct
 	elif bool(calc.get("was_blocked", false)):
 		block_tag = " [БЛОК %d%%]" % block_pct
 	var no_guard_tag: String = " [ОТКРЫТАЯ СТОЙКА!]" if bool(calc.get("no_guard_triggered", false)) else ""

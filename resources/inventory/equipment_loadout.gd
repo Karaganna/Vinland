@@ -5,10 +5,10 @@ extends Resource
 ## Сигнал об изменении экипировки бойца
 signal loadout_changed()
 
-## Количество доступных рук у бойца (задел для будущих спутников с 1 рукой)
+## Количество доступных рук у бойца (1 у однорукого бойца — активирует EMPTY_HAND и блокирует 2H/комплекты)
 @export_range(1, 2, 1) var available_hands: int = 2
 
-## 5 слотов экипировки
+## 5 слотов экипировки (броня представлена единственным слотом body)
 @export var left_hand: EquipmentItemData = null
 @export var right_hand: EquipmentItemData = null
 @export var body: EquipmentItemData = null
@@ -26,9 +26,9 @@ func create_copy() -> EquipmentLoadout:
 	copy.accessory_2 = accessory_2
 	return copy
 
-## Возвращает true, если обе руки заняты одним двуручным оружием
+## Возвращает true, если обе руки заняты одним двуручным оружием или неделимым парным комплектом
 func is_two_handed_equipped() -> bool:
-	return left_hand != null and left_hand.slot_type == InventoryTypes.EquipmentSlotType.TWO_HAND
+	return left_hand != null and left_hand.occupies_both_hands()
 
 ## Возвращает предмет в указанном слоте
 func get_slot_item(slot_id: StringName) -> EquipmentItemData:
@@ -36,7 +36,7 @@ func get_slot_item(slot_id: StringName) -> EquipmentItemData:
 		InventoryTypes.SLOT_LEFT_HAND:
 			return left_hand
 		InventoryTypes.SLOT_RIGHT_HAND:
-			return right_hand
+			return right_hand if available_hands >= 2 else null
 		InventoryTypes.SLOT_BODY:
 			return body
 		InventoryTypes.SLOT_ACCESSORY_1:
@@ -45,12 +45,12 @@ func get_slot_item(slot_id: StringName) -> EquipmentItemData:
 			return accessory_2
 	return null
 
-## Возвращает уникальные экземпляры экипировки без двойного учета двуручного оружия
+## Возвращает уникальные экземпляры экипировки без двойного учета двуручного оружия / комплекта
 func get_equipped_unique_items() -> Array[EquipmentItemData]:
 	var result: Array[EquipmentItemData] = []
 	if left_hand != null:
 		result.append(left_hand)
-	if right_hand != null and not is_two_handed_equipped():
+	if available_hands >= 2 and right_hand != null and not is_two_handed_equipped():
 		result.append(right_hand)
 	if body != null:
 		result.append(body)
@@ -75,37 +75,90 @@ func is_item_id_equipped(p_item_id: String, ignore_slot: StringName = &"") -> bo
 			return true
 	return false
 
-## Проверяет возможность надеть предмет в указанный слот с учетом рук и уникальности
+## Базовая проверка совместимости предмета со слотом, числом рук и уникальностью
 func can_equip_item(slot_id: StringName, item: EquipmentItemData) -> Dictionary:
 	if item == null:
 		return {"ok": false, "reason": "Предмет не указан."}
 	if not InventoryTypes.get_all_slot_ids().has(slot_id):
 		return {"ok": false, "reason": "Неизвестный слот экипировки."}
 	
-	match item.slot_type:
-		InventoryTypes.EquipmentSlotType.TWO_HAND:
-			if not InventoryTypes.is_hand_slot(slot_id):
-				return {"ok": false, "reason": "Двуручное оружие надевается только в руки."}
-			if available_hands < 2:
-				return {"ok": false, "reason": "Недостаточно свободных рук для двуручного оружия."}
-		InventoryTypes.EquipmentSlotType.ONE_HAND, InventoryTypes.EquipmentSlotType.SHIELD:
-			if not InventoryTypes.is_hand_slot(slot_id):
-				return {"ok": false, "reason": "Этот предмет предназначен для слота руки."}
-			if slot_id == InventoryTypes.SLOT_RIGHT_HAND and available_hands < 2:
-				return {"ok": false, "reason": "У бойца недоступна вторая рука."}
-		InventoryTypes.EquipmentSlotType.BODY:
-			if slot_id != InventoryTypes.SLOT_BODY:
-				return {"ok": false, "reason": "Броня надевается только в слот «Тело»."}
-		InventoryTypes.EquipmentSlotType.ACCESSORY:
-			if slot_id != InventoryTypes.SLOT_ACCESSORY_1 and slot_id != InventoryTypes.SLOT_ACCESSORY_2:
-				return {"ok": false, "reason": "Аксессуар надевается только в слоты аксессуаров."}
+	if item.occupies_both_hands():
+		if not InventoryTypes.is_hand_slot(slot_id):
+			return {"ok": false, "reason": "Двуручное оружие и комплекты надеваются только в руки."}
+		if available_hands < 2:
+			return {"ok": false, "reason": "Однорукий боец не может носить двуручное оружие или парные комплекты."}
+	elif item.slot_type == InventoryTypes.EquipmentSlotType.ONE_HAND or item.is_shield_item():
+		if not InventoryTypes.is_hand_slot(slot_id):
+			return {"ok": false, "reason": "Этот предмет предназначен для слота руки."}
+		if slot_id == InventoryTypes.SLOT_RIGHT_HAND and available_hands < 2:
+			return {"ok": false, "reason": "У однорукого бойца недоступна вторая рука."}
+	elif item.slot_type == InventoryTypes.EquipmentSlotType.BODY:
+		if slot_id != InventoryTypes.SLOT_BODY:
+			return {"ok": false, "reason": "Броня надевается только в слот «Тело»."}
+	elif item.slot_type == InventoryTypes.EquipmentSlotType.ACCESSORY:
+		if slot_id != InventoryTypes.SLOT_ACCESSORY_1 and slot_id != InventoryTypes.SLOT_ACCESSORY_2:
+			return {"ok": false, "reason": "Аксессуар надевается только в слоты аксессуаров."}
 	
 	if item.is_unique and is_item_id_equipped(item.item_id, slot_id):
 		return {"ok": false, "reason": "Уникальный предмет «%s» уже экипирован." % item.display_name}
 	
 	return {"ok": true, "reason": ""}
 
-## Надевает предмет в слот, соблюдая правила одноручного/двуручного оружия, и возвращает снятые вещи
+## Полная проверка экипировки с учетом правил ГГ vs рекрутов, категории оружия, «Тяжелого» и Даров Реликвий
+func can_equip_for_combatant(combatant_data: CombatantData, slot_id: StringName, item: EquipmentItemData) -> Dictionary:
+	var base_check: Dictionary = can_equip_item(slot_id, item)
+	if not bool(base_check.get("ok", false)):
+		return base_check
+	if combatant_data == null or item == null:
+		return base_check
+	
+	# 1. Разделение фирменного оружия/щитов ГГ и оружия мира / легендарок рекрутов
+	if item.is_weapon_item() or item.is_shield_item():
+		if combatant_data.is_hero:
+			if not item.is_hero_signature:
+				return {"ok": false, "reason": "Главный герой использует только фирменное сюжетное оружие и щиты."}
+			if item.is_legendary:
+				return {"ok": false, "reason": "Легендарное оружие мира предназначено только для рекрутов."}
+		else:
+			if item.is_hero_signature:
+				return {"ok": false, "reason": "Фирменное снаряжение «%s» доступно только Главному герою." % item.display_name}
+	
+	# 2. Привязка рекрута к своей категории оружия (щиты разрешены с учетом проверки «Тяжелого»)
+	if not combatant_data.is_hero and item.is_weapon_item():
+		var item_cat: InventoryTypes.WeaponCategory = item.get_effective_weapon_category()
+		if combatant_data.weapon_category != InventoryTypes.WeaponCategory.NONE and item_cat != combatant_data.weapon_category:
+			return {
+				"ok": false,
+				"reason": "Боец владеет только категорией «%s»." % InventoryTypes.get_weapon_category_display_name(combatant_data.weapon_category)
+			}
+	
+	# 3. Проверка метки «Тяжелое» (на оружии, тяжелых щитах и тяжелой броне)
+	if item.is_heavy and not combatant_data.can_wear_heavy:
+		return {"ok": false, "reason": "Боец не может носить тяжёлое снаряжение."}
+	
+	# 4. Проверка Дара Реликвии для категории RELICS
+	var req_gift: InventoryTypes.RelicGift = item.get_effective_required_gift()
+	if req_gift != InventoryTypes.RelicGift.NONE and not combatant_data.has_relic_gift(req_gift):
+		return {
+			"ok": false,
+			"reason": "Требуется Дар «%s» для использования этой реликвии." % InventoryTypes.get_relic_gift_display_name(req_gift)
+		}
+	
+	return {"ok": true, "reason": ""}
+
+## Надевает предмет с полной проверкой ограничений конкретного бойца
+func equip_into_slot_for_combatant(combatant_data: CombatantData, slot_id: StringName, item: EquipmentItemData) -> Dictionary:
+	var check: Dictionary = can_equip_for_combatant(combatant_data, slot_id, item)
+	if not bool(check.get("ok", false)):
+		var empty_removed: Array[EquipmentItemData] = []
+		return {
+			"ok": false,
+			"reason": str(check.get("reason", "Невозможно надеть предмет.")),
+			"removed": empty_removed
+		}
+	return _perform_equip_into_slot(slot_id, item)
+
+## Надевает предмет в слот с базовой проверкой слота и рук (для фабрик пресетов)
 func equip_into_slot(slot_id: StringName, item: EquipmentItemData) -> Dictionary:
 	var check: Dictionary = can_equip_item(slot_id, item)
 	if not bool(check.get("ok", false)):
@@ -115,9 +168,11 @@ func equip_into_slot(slot_id: StringName, item: EquipmentItemData) -> Dictionary
 			"reason": str(check.get("reason", "Невозможно надеть предмет.")),
 			"removed": empty_removed
 		}
-	
+	return _perform_equip_into_slot(slot_id, item)
+
+func _perform_equip_into_slot(slot_id: StringName, item: EquipmentItemData) -> Dictionary:
 	var removed: Array[EquipmentItemData] = []
-	if item.slot_type == InventoryTypes.EquipmentSlotType.TWO_HAND:
+	if item.occupies_both_hands():
 		if is_two_handed_equipped():
 			removed.append(left_hand)
 		else:
@@ -159,7 +214,7 @@ func equip_into_slot(slot_id: StringName, item: EquipmentItemData) -> Dictionary
 	loadout_changed.emit()
 	return {"ok": true, "reason": "", "removed": removed}
 
-## Снимает предмет из слота (при двуручном оружии очищает обе руки и возвращает 1 экземпляр)
+## Снимает предмет из слота (при двуручном оружии / комплекте очищает обе руки и возвращает 1 экземпляр)
 func unequip_from_slot(slot_id: StringName) -> Array[EquipmentItemData]:
 	var removed: Array[EquipmentItemData] = []
 	if InventoryTypes.is_hand_slot(slot_id) and is_two_handed_equipped():
@@ -195,7 +250,7 @@ func unequip_from_slot(slot_id: StringName) -> Array[EquipmentItemData]:
 		loadout_changed.emit()
 	return removed
 
-## Суммирует бонусы характеристик всех надетых вещей без дублирования двуручного оружия
+## Суммирует бонусы характеристик всех надетых вещей без дублирования двуручного оружия / комплекта
 func get_total_stat_bonuses() -> Dictionary:
 	var totals: Dictionary = {
 		"max_hp": 0,
@@ -216,19 +271,21 @@ func get_total_stat_bonuses() -> Dictionary:
 		totals["crit_multiplier"] = float(totals["crit_multiplier"]) + eq.bonus_crit_multiplier
 	return totals
 
-## Вычисляет активные парные оружейные синергии для текущих рук
+## Вычисляет активные оружейные синергии рук (включая EMPTY_HAND у одноруких и со свободной второй рукой)
 func get_active_synergies(synergy_catalog: Array[WeaponSynergyData]) -> Array[WeaponSynergyData]:
 	var active: Array[WeaponSynergyData] = []
-	if available_hands < 2 or is_two_handed_equipped():
+	if is_two_handed_equipped():
 		return active
-	if left_hand == null or right_hand == null:
+	
+	var eff_right: EquipmentItemData = right_hand if available_hands >= 2 else null
+	if left_hand == null and eff_right == null:
 		return active
 	
 	var seen_ids: Array[String] = []
 	for syn: WeaponSynergyData in synergy_catalog:
 		if syn == null:
 			continue
-		if syn.matches_hands(left_hand.weapon_archetype, right_hand.weapon_archetype):
+		if syn.matches_loadout_hands(left_hand, eff_right, available_hands):
 			if not syn.synergy_id.is_empty() and seen_ids.has(syn.synergy_id):
 				continue
 			if not syn.synergy_id.is_empty():
@@ -236,32 +293,64 @@ func get_active_synergies(synergy_catalog: Array[WeaponSynergyData]) -> Array[We
 			active.append(syn)
 	return active
 
-## Собирает умения от надетых предметов и активных оружейных синергий (без дублей)
+## Формирует набор активных навыков строго по 4 правилам рук, синергий, комплектов и легендарок (щиты навыков не дают)
 func get_granted_skills(synergy_catalog: Array[WeaponSynergyData]) -> Array[SkillData]:
 	var collected: Array[SkillData] = []
 	var seen_skill_ids: Array[String] = []
 	
-	for eq: EquipmentItemData in get_equipped_unique_items():
-		for sk: SkillData in eq.granted_skills:
-			if sk == null:
-				continue
-			if not sk.skill_id.is_empty() and seen_skill_ids.has(sk.skill_id):
-				continue
-			if not sk.skill_id.is_empty():
-				seen_skill_ids.append(sk.skill_id)
-			collected.append(sk)
+	# 1. Двуручное оружие или неделимый комплект: до 2 базовых навыков типа + 2 легендарных (если легендарное)
+	if is_two_handed_equipped() and left_hand != null and left_hand.is_weapon_item():
+		var base_limit: int = mini(2, left_hand.granted_skills.size())
+		for i: int in range(base_limit):
+			_append_unique_skill(collected, seen_skill_ids, left_hand.granted_skills[i])
+		if left_hand.is_legendary:
+			for leg_sk: SkillData in left_hand.legendary_skills:
+				_append_unique_skill(collected, seen_skill_ids, leg_sk)
+	else:
+		# 2. Одноручная конфигурация рук
+		var eff_right: EquipmentItemData = right_hand if available_hands >= 2 else null
+		var left_w: EquipmentItemData = left_hand if (left_hand != null and left_hand.is_weapon_item()) else null
+		var right_w: EquipmentItemData = eff_right if (eff_right != null and eff_right.is_weapon_item()) else null
+		var active_syns: Array[WeaponSynergyData] = get_active_synergies(synergy_catalog)
+		
+		if not active_syns.is_empty():
+			# Правило 1: Одноручное + подходящая вторая рука (SAME_TYPE / SHIELD / LIGHT_SHIELD / EMPTY_HAND) -> 1 базовый + 1 синергийный
+			var primary_w: EquipmentItemData = left_w if left_w != null else right_w
+			if primary_w != null and not primary_w.granted_skills.is_empty():
+				_append_unique_skill(collected, seen_skill_ids, primary_w.granted_skills[0])
+			for syn: WeaponSynergyData in active_syns:
+				_append_unique_skill(collected, seen_skill_ids, syn.granted_skill)
+		else:
+			# Правило 2: Два разных одноручных без синергии (или одно без синергии) -> по 1 базовому навыку от каждого оружия
+			if left_w != null and not left_w.granted_skills.is_empty():
+				_append_unique_skill(collected, seen_skill_ids, left_w.granted_skills[0])
+			if right_w != null and not right_w.granted_skills.is_empty():
+				_append_unique_skill(collected, seen_skill_ids, right_w.granted_skills[0])
+		
+		# Правило 4: Легендарное одноручное оружие дает поверх 2 уникальных легендарных навыка
+		if left_w != null and left_w.is_legendary:
+			for leg_sk: SkillData in left_w.legendary_skills:
+				_append_unique_skill(collected, seen_skill_ids, leg_sk)
+		if right_w != null and right_w.is_legendary and right_w != left_w:
+			for leg_sk: SkillData in right_w.legendary_skills:
+				_append_unique_skill(collected, seen_skill_ids, leg_sk)
 	
-	for syn: WeaponSynergyData in get_active_synergies(synergy_catalog):
-		if syn.granted_skill == null:
-			continue
-		var sk: SkillData = syn.granted_skill
-		if not sk.skill_id.is_empty() and seen_skill_ids.has(sk.skill_id):
-			continue
-		if not sk.skill_id.is_empty():
-			seen_skill_ids.append(sk.skill_id)
-		collected.append(sk)
+	# Навыки от брони/аксессуаров (если заданы; щиты гарантированно навыков не выдают)
+	for non_hand_eq: EquipmentItemData in [body, accessory_1, accessory_2]:
+		if non_hand_eq != null and not non_hand_eq.is_shield_item():
+			for sk: SkillData in non_hand_eq.granted_skills:
+				_append_unique_skill(collected, seen_skill_ids, sk)
 	
 	return collected
+
+static func _append_unique_skill(target_list: Array[SkillData], seen_ids: Array[String], sk: SkillData) -> void:
+	if sk == null:
+		return
+	if not sk.skill_id.is_empty():
+		if seen_ids.has(sk.skill_id):
+			return
+		seen_ids.append(sk.skill_id)
+	target_list.append(sk)
 
 ## Возвращает сводный словарь модификации порогов QTE от всей экипировки
 func get_effective_qte_overrides() -> Dictionary:
@@ -324,9 +413,33 @@ func get_flow_threshold_items() -> Array[EquipmentItemData]:
 			items.append(eq)
 	return items
 
-## Проверяет, экипирован ли на бойце щит в любой доступной руке
+## Проверяет, экипирован ли на бойце щит (SHIELD, SHIELD_LIGHT или SHIELD_HEAVY)
 func has_shield_equipped() -> bool:
 	for eq: EquipmentItemData in get_equipped_unique_items():
-		if eq != null and eq.slot_type == InventoryTypes.EquipmentSlotType.SHIELD:
+		if eq != null and eq.is_shield_item():
 			return true
 	return false
+
+## Возвращает суммарную прибавку защиты именно от экипированных щитов (для обхода через IGNORES_SHIELD)
+func get_shield_defense_bonus() -> int:
+	var shield_def: int = 0
+	for eq: EquipmentItemData in get_equipped_unique_items():
+		if eq != null and eq.is_shield_item():
+			shield_def += maxi(0, eq.bonus_defense)
+	return shield_def
+
+## Возвращает пассивные шансы усиленного и полного блока от экипированного щита в стойке Блок
+func get_shield_block_chances() -> Dictionary:
+	var has_sh: bool = false
+	var enhanced_ch: float = 0.0
+	var full_ch: float = 0.0
+	for eq: EquipmentItemData in get_equipped_unique_items():
+		if eq != null and eq.is_shield_item():
+			has_sh = true
+			enhanced_ch = maxf(enhanced_ch, eq.shield_enhanced_block_chance)
+			full_ch = maxf(full_ch, eq.shield_full_block_chance)
+	return {
+		"has_shield": has_sh,
+		"enhanced_chance": clampf(enhanced_ch, 0.0, 1.0),
+		"full_chance": clampf(full_ch, 0.0, 1.0)
+	}

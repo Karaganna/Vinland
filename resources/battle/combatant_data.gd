@@ -2,7 +2,7 @@
 class_name CombatantData
 extends Resource
 
-## Шаблон бойца отряда игрока (ГГ со шкалой «Поток» и рекруты со строго одним баком)
+## Шаблон бойца отряда игрока (ГГ со шкалой «Поток» и рекруты с категорией оружия, одним баком и Дарами)
 @export var combatant_id: String = "hero"
 @export var display_name: String = "Герой"
 @export var is_player_controlled: bool = true
@@ -11,6 +11,14 @@ extends Resource
 @export var is_viking: bool = true
 @export var sprite_color: Color = Color(0.85, 0.25, 0.25, 1.0)
 @export var stats: CombatStatsData = null
+
+@export_group("Оружейная специализация, Тяжелое и Дары")
+## Привязанная категория оружия рекрута (ГГ использует HERO_SIGNATURE и не ограничен одной категорией)
+@export var weapon_category: InventoryTypes.WeaponCategory = InventoryTypes.WeaponCategory.NONE
+## Может ли боец экипировать предметы с меткой is_heavy (по умолчанию false у SHORT_BLADES, RANGED, RELICS)
+@export var can_wear_heavy: bool = true
+## Врожденные/открытые Дары для использования Реликвий (VOICE, SEIDR, LOT, CHARM, BEAST)
+@export var gifts: Array[InventoryTypes.RelicGift] = []
 
 @export_group("Ресурсный бак и Поток ГГ")
 ## Единственный основной бак рекрута (ENERGY, MANA, RAGE или HAMINGJA)
@@ -47,6 +55,12 @@ extends Resource
 @export var equipment_modifiers: Array[EquipmentModifierStub] = []
 @export var item_slots: Array[ItemSlotStub] = []
 @export var rune_slots: Array[RuneSlotStub] = []
+
+## Проверяет наличие указанного Дара Реликвии у бойца
+func has_relic_gift(gift: InventoryTypes.RelicGift) -> bool:
+	if gift == InventoryTypes.RelicGift.NONE:
+		return true
+	return gifts.has(gift)
 
 ## Возвращает проверенный основной бак рекрута (строго 1 из 4; викинги не могут иметь MANA)
 func get_validated_primary_resource() -> BattleTypes.ResourceType:

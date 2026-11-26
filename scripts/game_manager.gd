@@ -159,6 +159,7 @@ func get_party_member_status(member_data: CombatantData) -> Dictionary:
 		"crit_chance": preview.get_effective_crit_chance(),
 		"crit_multiplier": preview.get_effective_crit_multiplier(),
 		"active_synergies": preview.active_synergies,
+		"granted_weapon_skills": preview.equipment_loadout.get_granted_skills(synergy_catalog) if preview.equipment_loadout != null else [],
 		"qte_override": preview.get_effective_qte_override()
 	}
 

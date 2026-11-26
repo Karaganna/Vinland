@@ -195,15 +195,20 @@ func _rebuild_slots(hero_data: CombatantData) -> void:
 		btn.custom_minimum_size = Vector2(0.0, 20.0)
 		btn.add_theme_font_size_override("font_size", 9)
 		
-		if slot_id == InventoryTypes.SLOT_RIGHT_HAND and two_handed and item != null:
-			btn.text = "%s: [занята: %s]" % [slot_title, item.display_name]
-			btn.tooltip_text = "Обе руки заняты двуручным оружием. Нажмите, чтобы снять."
+		if slot_id == InventoryTypes.SLOT_RIGHT_HAND and two_handed and loadout.left_hand != null:
+			var occupied_item: EquipmentItemData = loadout.left_hand
+			btn.text = "%s: [занята: %s]" % [slot_title, occupied_item.display_name]
+			btn.tooltip_text = "Обе руки заняты двуручным оружием / комплектом. Нажмите, чтобы снять."
 			var captured_slot: StringName = slot_id
 			btn.pressed.connect(func() -> void:
 				_on_slot_unequip_pressed(captured_slot)
 			)
 		elif item != null:
-			var tag_2h: String = " [2Р]" if item.slot_type == InventoryTypes.EquipmentSlotType.TWO_HAND else ""
+			var tag_2h: String = ""
+			if item.is_set_bundle:
+				tag_2h = " [Компл.]"
+			elif item.slot_type == InventoryTypes.EquipmentSlotType.TWO_HAND:
+				tag_2h = " [2Р]"
 			btn.text = "%s: %s%s" % [slot_title, item.display_name, tag_2h]
 			btn.tooltip_text = "%s\nНажмите, чтобы снять в инвентарь" % item.get_stat_summary()
 			var captured_slot: StringName = slot_id
@@ -212,7 +217,7 @@ func _rebuild_slots(hero_data: CombatantData) -> void:
 			)
 		else:
 			if slot_id == InventoryTypes.SLOT_RIGHT_HAND and loadout.available_hands < 2:
-				btn.text = "%s: [недоступна]" % slot_title
+				btn.text = "%s: [1 рука — свободная]" % slot_title
 			else:
 				btn.text = "%s: — пусто —" % slot_title
 			btn.disabled = true
@@ -235,7 +240,7 @@ func _refresh_stats_and_synergy(hero_data: CombatantData) -> void:
 		var crit_pct: int = roundi(float(status.get("crit_chance", 0.05)) * 100.0)
 		var crit_mult: float = float(status.get("crit_multiplier", 1.5))
 		_stats_label.text = (
-			"HP: %d/%d · %s%s%s\nАТК: %d  МАГ: %d  ЗАЩ: %d  СКР: %d\nКрит: %d%% (x%.2f)" % [
+			"HP: %d/%d · %s%s%s\nАТК: %d  МАГ: %d  ЗАЩ: %d  СКР: %d  Крит: %d%% (x%.2f)" % [
 				int(status.get("current_hp", 100)),
 				int(status.get("max_hp", 100)),
 				work_res_name,
@@ -259,9 +264,18 @@ func _refresh_stats_and_synergy(hero_data: CombatantData) -> void:
 				if entry is WeaponSynergyData:
 					var syn: WeaponSynergyData = entry as WeaponSynergyData
 					syn_count += 1
-					lines.append("✦ Синергия: %s\n%s" % [syn.display_name, syn.description])
+					lines.append("✦ Синергия: %s" % syn.display_name)
 		if syn_count == 0:
 			lines.append("Синергия рук: нет активной связки")
+		
+		var sk_variant: Variant = status.get("granted_weapon_skills", [])
+		var skill_names: PackedStringArray = PackedStringArray()
+		if sk_variant is Array:
+			for sk_entry: Variant in sk_variant:
+				if sk_entry is SkillData:
+					skill_names.append((sk_entry as SkillData).skill_name)
+		if not skill_names.is_empty():
+			lines.append("Навыки оружия: %s" % ", ".join(skill_names))
 		
 		var qte_ov: Dictionary = status.get("qte_override", {}) as Dictionary
 		if bool(qte_ov.get("has_override", false)):
@@ -301,9 +315,7 @@ func _rebuild_equipment_list(hero_data: CombatantData) -> void:
 		_add_empty_list_label("В инвентаре нет свободной экипировки.")
 		return
 	
-	var available_hands: int = 2
-	if hero_data != null and hero_data.equipment_loadout != null:
-		available_hands = hero_data.equipment_loadout.available_hands
+	var loadout: EquipmentLoadout = hero_data.equipment_loadout if hero_data != null else null
 	
 	for eq: EquipmentItemData in items:
 		if eq == null:
@@ -319,15 +331,23 @@ func _rebuild_equipment_list(hero_data: CombatantData) -> void:
 		hbox.add_child(info_vbox)
 		
 		var name_lbl: Label = Label.new()
-		var unique_tag: String = " [Уник.]" if eq.is_unique else ""
-		name_lbl.text = "%s%s" % [eq.display_name, unique_tag]
+		name_lbl.text = "%s%s" % [eq.display_name, _format_item_badges(eq)]
 		name_lbl.add_theme_font_size_override("font_size", 9)
-		if eq.is_unique:
+		if eq.is_legendary:
+			name_lbl.modulate = Color(1.0, 0.62, 0.24, 1.0)
+		elif eq.is_hero_signature:
+			name_lbl.modulate = Color(0.55, 0.88, 1.0, 1.0)
+		elif eq.is_unique:
 			name_lbl.modulate = Color(1.0, 0.88, 0.55, 1.0)
 		info_vbox.add_child(name_lbl)
 		
+		var cat_prefix: String = InventoryTypes.get_slot_type_display_name(eq.slot_type)
+		var eff_cat: InventoryTypes.WeaponCategory = eq.get_effective_weapon_category()
+		if eff_cat != InventoryTypes.WeaponCategory.NONE:
+			cat_prefix = "%s (%s)" % [cat_prefix, InventoryTypes.get_weapon_category_display_name(eff_cat)]
+		
 		var sub_lbl: Label = Label.new()
-		sub_lbl.text = "%s · %s" % [InventoryTypes.get_slot_type_display_name(eq.slot_type), eq.get_stat_summary()]
+		sub_lbl.text = "%s · %s" % [cat_prefix, eq.get_stat_summary()]
 		sub_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		sub_lbl.add_theme_font_size_override("font_size", 8)
 		sub_lbl.modulate = Color(0.74, 0.80, 0.90, 1.0)
@@ -338,48 +358,53 @@ func _rebuild_equipment_list(hero_data: CombatantData) -> void:
 		hbox.add_child(btn_hbox)
 		
 		var captured_eq: EquipmentItemData = eq
-		match eq.slot_type:
-			InventoryTypes.EquipmentSlotType.ONE_HAND, InventoryTypes.EquipmentSlotType.SHIELD:
-				var left_btn: Button = _create_compact_action_btn("Л", "Надеть в левую руку")
-				left_btn.pressed.connect(func() -> void:
-					_on_equip_clicked(captured_eq, InventoryTypes.SLOT_LEFT_HAND)
-				)
-				btn_hbox.add_child(left_btn)
-				
-				var right_btn: Button = _create_compact_action_btn("П", "Надеть в правую руку")
-				right_btn.disabled = available_hands < 2
-				right_btn.pressed.connect(func() -> void:
-					_on_equip_clicked(captured_eq, InventoryTypes.SLOT_RIGHT_HAND)
-				)
-				btn_hbox.add_child(right_btn)
-			InventoryTypes.EquipmentSlotType.TWO_HAND:
-				var two_h_btn: Button = _create_compact_action_btn("Обе", "Надеть в обе руки")
-				two_h_btn.disabled = available_hands < 2
-				two_h_btn.pressed.connect(func() -> void:
-					_on_equip_clicked(captured_eq, InventoryTypes.SLOT_LEFT_HAND)
-				)
-				btn_hbox.add_child(two_h_btn)
-			InventoryTypes.EquipmentSlotType.BODY:
-				var body_btn: Button = _create_compact_action_btn("Надеть", "Надеть в слот «Тело»")
-				body_btn.pressed.connect(func() -> void:
-					_on_equip_clicked(captured_eq, InventoryTypes.SLOT_BODY)
-				)
-				btn_hbox.add_child(body_btn)
-			InventoryTypes.EquipmentSlotType.ACCESSORY:
-				var acc1_btn: Button = _create_compact_action_btn("Сл.1", "Надеть в Аксессуар 1")
-				acc1_btn.pressed.connect(func() -> void:
-					_on_equip_clicked(captured_eq, InventoryTypes.SLOT_ACCESSORY_1)
-				)
-				btn_hbox.add_child(acc1_btn)
-				
-				var acc2_btn: Button = _create_compact_action_btn("Сл.2", "Надеть в Аксессуар 2")
-				acc2_btn.pressed.connect(func() -> void:
-					_on_equip_clicked(captured_eq, InventoryTypes.SLOT_ACCESSORY_2)
-				)
-				btn_hbox.add_child(acc2_btn)
+		if eq.occupies_both_hands():
+			_add_validated_equip_button(btn_hbox, hero_data, loadout, captured_eq, InventoryTypes.SLOT_LEFT_HAND, "Обе", "Надеть в обе руки")
+		elif eq.slot_type == InventoryTypes.EquipmentSlotType.ONE_HAND or eq.is_shield_item():
+			_add_validated_equip_button(btn_hbox, hero_data, loadout, captured_eq, InventoryTypes.SLOT_LEFT_HAND, "Л", "Надеть в левую руку")
+			_add_validated_equip_button(btn_hbox, hero_data, loadout, captured_eq, InventoryTypes.SLOT_RIGHT_HAND, "П", "Надеть в правую руку")
+		elif eq.slot_type == InventoryTypes.EquipmentSlotType.BODY:
+			_add_validated_equip_button(btn_hbox, hero_data, loadout, captured_eq, InventoryTypes.SLOT_BODY, "Надеть", "Надеть в слот «Тело»")
+		elif eq.slot_type == InventoryTypes.EquipmentSlotType.ACCESSORY:
+			_add_validated_equip_button(btn_hbox, hero_data, loadout, captured_eq, InventoryTypes.SLOT_ACCESSORY_1, "Сл.1", "Надеть в Аксессуар 1")
+			_add_validated_equip_button(btn_hbox, hero_data, loadout, captured_eq, InventoryTypes.SLOT_ACCESSORY_2, "Сл.2", "Надеть в Аксессуар 2")
 		
 		card.tooltip_text = eq.description
 		_item_list_container.add_child(card)
+
+func _add_validated_equip_button(
+	parent: HBoxContainer,
+	member_data: CombatantData,
+	loadout: EquipmentLoadout,
+	eq: EquipmentItemData,
+	slot_id: StringName,
+	btn_label: String,
+	default_tip: String
+) -> void:
+	var check: Dictionary = {"ok": true, "reason": ""}
+	if loadout != null:
+		check = loadout.can_equip_for_combatant(member_data, slot_id, eq)
+	var allowed: bool = bool(check.get("ok", false))
+	var reason: String = str(check.get("reason", ""))
+	var btn: Button = _create_compact_action_btn(btn_label, default_tip if allowed else reason)
+	if not allowed:
+		btn.modulate = Color(0.62, 0.62, 0.68, 0.85)
+	btn.pressed.connect(func() -> void:
+		_on_equip_clicked(eq, slot_id)
+	)
+	parent.add_child(btn)
+
+func _format_item_badges(eq: EquipmentItemData) -> String:
+	var tags: PackedStringArray = PackedStringArray()
+	if eq.is_hero_signature:
+		tags.append("ГГ")
+	if eq.is_legendary:
+		tags.append("Легенд.")
+	elif eq.is_unique and not eq.is_hero_signature:
+		tags.append("Уник.")
+	if eq.is_set_bundle:
+		tags.append("Комплект")
+	return " [%s]" % ", ".join(tags) if not tags.is_empty() else ""
 
 func _rebuild_consumables_list(hero_data: CombatantData) -> void:
 	if _item_list_container == null:

@@ -127,10 +127,22 @@ static func calculate_block_mitigation(
 	var base_block_ratio: float = BattleTypes.get_blockability_ratio(skill.blockability)
 	var effective_block_ratio: float = 0.0
 	var was_blocked: bool = false
+	var shield_full_proc: bool = false
+	var shield_enhanced_proc: bool = false
 	
 	if target.is_blocking:
 		was_blocked = true
 		effective_block_ratio = base_block_ratio
+		if target_has_shield:
+			var shield_ch: Dictionary = target.get_shield_block_chances()
+			var full_ch: float = float(shield_ch.get("full_chance", 0.0))
+			var enh_ch: float = float(shield_ch.get("enhanced_chance", 0.0))
+			if full_ch > 0.0 and randf() < full_ch:
+				effective_block_ratio = 1.0
+				shield_full_proc = true
+			elif enh_ch > 0.0 and randf() < enh_ch:
+				effective_block_ratio = clampf(effective_block_ratio + 0.25, 0.0, 0.95)
+				shield_enhanced_proc = true
 	
 	if has_defense_qte:
 		var qte_scale: float = 0.0
@@ -153,6 +165,8 @@ static func calculate_block_mitigation(
 	var attacker_breaks_guard: bool = skill.is_guard_break() or (attacker != null and attacker.has_passive_tag(&"GUARD_BREAK"))
 	if attacker_breaks_guard and (target.is_blocking or effective_block_ratio > 0.0):
 		guard_broken = true
+		shield_full_proc = false
+		shield_enhanced_proc = false
 		effective_block_ratio *= (1.0 - clampf(skill.guard_break_ignore_ratio, 0.0, 1.0))
 		if target.is_blocking:
 			guard_break_bonus = maxf(1.0, skill.guard_break_bonus_multiplier)
@@ -165,7 +179,9 @@ static func calculate_block_mitigation(
 		"was_blocked": was_blocked,
 		"guard_broken": guard_broken,
 		"guard_break_bonus": guard_break_bonus,
-		"shield_nullified_breath": false
+		"shield_nullified_breath": false,
+		"shield_full_proc": shield_full_proc,
+		"shield_enhanced_proc": shield_enhanced_proc
 	}
 
 ## Полный расчет урона с учетом Энергии, Ярости, Хамингьи, Потока, статусов и градиентного блока
@@ -237,8 +253,14 @@ static func calculate_damage(
 				rune_bonus += rune.ultimate_power_bonus
 		raw_power *= (tension_mult + rune_bonus)
 	
-	# Броня цели и выбранной части тела (с учетом возможного игнорирования щита)
+	# Броня цели и выбранной части тела (оружие с IGNORES_SHIELD игнорирует защиту от щита)
+	var ignores_shield_def: bool = (
+		skill.has_tag(BattleTypes.SkillTag.IGNORES_SHIELD)
+		or attacker.has_passive_tag(&"IGNORES_SHIELD")
+	)
 	var total_defense: int = target.get_effective_defense()
+	if ignores_shield_def:
+		total_defense = maxi(0, total_defense - target.get_shield_defense_bonus())
 	var part_mult: float = 1.0
 	if target_part != null and target_part.data != null:
 		total_defense += target_part.data.armor
@@ -312,6 +334,8 @@ static func calculate_damage(
 		"block_ratio": block_ratio,
 		"guard_broken": bool(block_info.get("guard_broken", false)),
 		"shield_nullified_breath": bool(block_info.get("shield_nullified_breath", false)),
+		"shield_full_proc": bool(block_info.get("shield_full_proc", false)),
+		"shield_enhanced_proc": bool(block_info.get("shield_enhanced_proc", false)),
 		"is_crit": is_crit,
 		"missed_by_blind": false,
 		"energy_modifier": energy_mod,

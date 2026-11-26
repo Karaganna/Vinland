@@ -147,9 +147,20 @@ func get_default_slot_for_item(combatant_data: CombatantData, item: EquipmentIte
 	var loadout: EquipmentLoadout = combatant_data.equipment_loadout if combatant_data != null else null
 	var hands_count: int = loadout.available_hands if loadout != null else 2
 	
+	if item.occupies_both_hands():
+		return InventoryTypes.SLOT_LEFT_HAND if hands_count >= 2 else &""
+	if item.is_shield_item():
+		if hands_count < 2:
+			return InventoryTypes.SLOT_LEFT_HAND
+		if loadout == null or loadout.is_two_handed_equipped():
+			return InventoryTypes.SLOT_RIGHT_HAND
+		if loadout.right_hand == null:
+			return InventoryTypes.SLOT_RIGHT_HAND
+		if loadout.left_hand == null:
+			return InventoryTypes.SLOT_LEFT_HAND
+		return InventoryTypes.SLOT_RIGHT_HAND
+	
 	match item.slot_type:
-		InventoryTypes.EquipmentSlotType.TWO_HAND:
-			return InventoryTypes.SLOT_LEFT_HAND if hands_count >= 2 else &""
 		InventoryTypes.EquipmentSlotType.ONE_HAND:
 			if loadout == null or loadout.is_two_handed_equipped():
 				return InventoryTypes.SLOT_LEFT_HAND
@@ -158,16 +169,6 @@ func get_default_slot_for_item(combatant_data: CombatantData, item: EquipmentIte
 			if hands_count >= 2 and loadout.right_hand == null:
 				return InventoryTypes.SLOT_RIGHT_HAND
 			return InventoryTypes.SLOT_LEFT_HAND
-		InventoryTypes.EquipmentSlotType.SHIELD:
-			if hands_count < 2:
-				return InventoryTypes.SLOT_LEFT_HAND
-			if loadout == null or loadout.is_two_handed_equipped():
-				return InventoryTypes.SLOT_RIGHT_HAND
-			if loadout.right_hand == null:
-				return InventoryTypes.SLOT_RIGHT_HAND
-			if loadout.left_hand == null:
-				return InventoryTypes.SLOT_LEFT_HAND
-			return InventoryTypes.SLOT_RIGHT_HAND
 		InventoryTypes.EquipmentSlotType.BODY:
 			return InventoryTypes.SLOT_BODY
 		InventoryTypes.EquipmentSlotType.ACCESSORY:
@@ -180,7 +181,7 @@ func get_default_slot_for_item(combatant_data: CombatantData, item: EquipmentIte
 			return InventoryTypes.SLOT_ACCESSORY_1
 	return &""
 
-## Экипирует предмет из инвентаря в указанный слот бойца, возвращая снятые предметы в инвентарь
+## Экипирует предмет из инвентаря в указанный слот бойца (с проверкой категории, Даров, Тяжелого и правил ГГ/рекрутов)
 func equip_item(combatant_data: CombatantData, slot_name: StringName, item: EquipmentItemData) -> Dictionary:
 	var empty_removed: Array[EquipmentItemData] = []
 	if combatant_data == null or item == null:
@@ -193,7 +194,7 @@ func equip_item(combatant_data: CombatantData, slot_name: StringName, item: Equi
 	if pool_idx < 0:
 		return {"ok": false, "reason": "Предмет отсутствует в инвентаре.", "removed": empty_removed}
 	
-	var equip_res: Dictionary = combatant_data.equipment_loadout.equip_into_slot(slot_name, item)
+	var equip_res: Dictionary = combatant_data.equipment_loadout.equip_into_slot_for_combatant(combatant_data, slot_name, item)
 	if not bool(equip_res.get("ok", false)):
 		return equip_res
 	
@@ -238,17 +239,18 @@ func _find_equipment_index(item: EquipmentItemData) -> int:
 	return -1
 
 func _does_item_fit_slot(item: EquipmentItemData, slot_id: StringName, available_hands: int) -> bool:
-	match item.slot_type:
-		InventoryTypes.EquipmentSlotType.TWO_HAND:
-			return InventoryTypes.is_hand_slot(slot_id) and available_hands >= 2
-		InventoryTypes.EquipmentSlotType.ONE_HAND, InventoryTypes.EquipmentSlotType.SHIELD:
-			if slot_id == InventoryTypes.SLOT_LEFT_HAND:
-				return available_hands >= 1
-			if slot_id == InventoryTypes.SLOT_RIGHT_HAND:
-				return available_hands >= 2
-			return false
-		InventoryTypes.EquipmentSlotType.BODY:
-			return slot_id == InventoryTypes.SLOT_BODY
-		InventoryTypes.EquipmentSlotType.ACCESSORY:
-			return slot_id == InventoryTypes.SLOT_ACCESSORY_1 or slot_id == InventoryTypes.SLOT_ACCESSORY_2
+	if item == null:
+		return false
+	if item.occupies_both_hands():
+		return InventoryTypes.is_hand_slot(slot_id) and available_hands >= 2
+	if item.slot_type == InventoryTypes.EquipmentSlotType.ONE_HAND or item.is_shield_item():
+		if slot_id == InventoryTypes.SLOT_LEFT_HAND:
+			return available_hands >= 1
+		if slot_id == InventoryTypes.SLOT_RIGHT_HAND:
+			return available_hands >= 2
+		return false
+	if item.slot_type == InventoryTypes.EquipmentSlotType.BODY:
+		return slot_id == InventoryTypes.SLOT_BODY
+	if item.slot_type == InventoryTypes.EquipmentSlotType.ACCESSORY:
+		return slot_id == InventoryTypes.SLOT_ACCESSORY_1 or slot_id == InventoryTypes.SLOT_ACCESSORY_2
 	return false

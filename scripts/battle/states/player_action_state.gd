@@ -436,6 +436,11 @@ func _resolve_offensive_action(
 		if not skill.is_ultimate:
 			actor.restore_resource(BattleTypes.ResourceType.TENSION, 15)
 	
+	# Парные самострелы после двойного залпа требуют перезарядки в следующем действии
+	if skill.skill_id == "synergy_twin_crossbows":
+		actor.apply_status(BattleTypes.StatusType.RELOAD_REQUIRED, 2, actor.runtime_id, 1.0, false, 1, true)
+		msg_parts.append("Требуется перезарядка самострелов.")
+	
 	_refresh_ui()
 	_emit_log(" ".join(msg_parts))
 	_advance_after_action()

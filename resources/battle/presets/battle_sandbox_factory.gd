@@ -12,6 +12,8 @@ static func create_sandbox_hero() -> CombatantData:
 	hero.is_player_controlled = true
 	hero.is_hero = true
 	hero.is_viking = true
+	hero.weapon_category = InventoryTypes.WeaponCategory.HERO_SIGNATURE
+	hero.can_wear_heavy = true
 	hero.sprite_color = Color(0.25, 0.55, 0.90, 1.0)
 	
 	var st: CombatStatsData = CombatStatsData.new()
@@ -62,48 +64,8 @@ static func create_sandbox_hero() -> CombatantData:
 	basic.requires_qte = false
 	hero.basic_attack = basic
 	
-	# 2. Выпад копьем с QTE Центр
-	var lunge_qte: QTEConfigData = QTEConfigData.new()
-	lunge_qte.qte_type = BattleTypes.QTEType.PRECISION_BAR
-	lunge_qte.duration_seconds = 2.6
-	lunge_qte.cursor_speed = 1.35
-	lunge_qte.success_zone_width = 0.24
-	lunge_qte.perfect_zone_width = 0.08
-	
-	var spear_lunge: SkillData = SkillData.new()
-	spear_lunge.skill_id = "hero_spear_lunge"
-	spear_lunge.skill_name = "Выпад"
-	spear_lunge.description = "Выпад древковым оружием (QTE Центр). Выводит цель из равновесия."
-	spear_lunge.action_category = BattleTypes.ActionType.SKILL
-	spear_lunge.target_side = BattleTypes.TargetSide.ENEMY
-	spear_lunge.resource_type = BattleTypes.ResourceType.ENERGY
-	spear_lunge.resource_cost = 20
-	spear_lunge.damage_type = BattleTypes.DamageType.PHYSICAL
-	spear_lunge.base_power = 18
-	spear_lunge.power_multiplier = 1.15
-	spear_lunge.blockability = BattleTypes.Blockability.HIGH_80
-	var lunge_tags: Array[BattleTypes.SkillTag] = [BattleTypes.SkillTag.MELEE]
-	spear_lunge.tags = lunge_tags
-	spear_lunge.applies_status = true
-	spear_lunge.status_to_apply = BattleTypes.StatusType.UNBALANCED
-	spear_lunge.status_duration_turns = 2
-	spear_lunge.requires_qte = true
-	spear_lunge.qte_config = lunge_qte
-	
-	# 3. Стойка копья «Держать дистанцию» (INTERCEPT_MELEE)
-	var keep_dist: SkillData = SkillData.new()
-	keep_dist.skill_id = "spear_keep_distance"
-	keep_dist.skill_name = "Держать дистанцию"
-	keep_dist.description = "Стойка древкового оружия: встречает контактную атаку врага контрударом и сбивает равновесие."
-	keep_dist.action_category = BattleTypes.ActionType.SKILL
-	keep_dist.target_side = BattleTypes.TargetSide.SELF
-	keep_dist.resource_type = BattleTypes.ResourceType.ENERGY
-	keep_dist.resource_cost = 15
-	keep_dist.enters_stance = true
-	keep_dist.stance_status = BattleTypes.StatusType.INTERCEPT_MELEE
-	keep_dist.stance_duration_turns = 1
-	
-	# 4. Второе дыхание (самолечение — сжигает часть Ярости, если Поток в режиме RAGE)
+	# Личный навык самолечения ГГ (оружейные навыки «Выпад», «Скьяльдборг» / «Держать дистанцию»
+	# или навыки «Меча из крови дракона» приходят динамически из EquipmentLoadout!)
 	var second_wind: SkillData = SkillData.new()
 	second_wind.skill_id = "hero_second_wind"
 	second_wind.skill_name = "Второе дыхание"
@@ -116,7 +78,7 @@ static func create_sandbox_hero() -> CombatantData:
 	var sw_tags: Array[BattleTypes.SkillTag] = [BattleTypes.SkillTag.SELF_HEAL_BURNS_RAGE]
 	second_wind.tags = sw_tags
 	
-	var hero_skills: Array[SkillData] = [spear_lunge, keep_dist, second_wind]
+	var hero_skills: Array[SkillData] = [second_wind]
 	hero.skills = hero_skills
 	
 	# Ультимативная способность (50% / 100% Напряжения)
