@@ -85,12 +85,30 @@ enum Blockability {
 	NONE_0 = 0
 }
 
-## Типы мини-игр QTE
+## Типы мини-игр QTE (все 8 модулей актуального геймдизайна)
 enum QTEType {
 	NONE,
 	PRECISION_BAR,
 	CIRCULAR_SKILL_CHECK,
-	RHYTHM_TRACK
+	RHYTHM_TRACK,
+	HOLD_RELEASE,
+	SERIES_CHAIN,
+	RUNE_SEQUENCE,
+	RUSH_MASH,
+	DICE_ROLL
+}
+
+## Боги-покровители (4 пары антагонистов для рекрутов и пути ГГ)
+enum GodId {
+	NONE,
+	SKADI,
+	FREYR,
+	LOKI,
+	TYR,
+	ODIN,
+	THOR,
+	HEL,
+	FREYJA
 }
 
 ## Основные действия хода (5 кнопок меню)
@@ -243,3 +261,29 @@ static func get_status_display_name(status_type: StatusType) -> String:
 		StatusType.INTERCEPT_MELEE:
 			return "Держать дистанцию"
 	return "Статус"
+
+## Возвращает локализованное имя бога-покровителя
+static func get_god_display_name(god_id: GodId) -> String:
+	match god_id:
+		GodId.SKADI: return "Скади"
+		GodId.FREYR: return "Фрейр"
+		GodId.LOKI: return "Локи"
+		GodId.TYR: return "Тюр"
+		GodId.ODIN: return "Один"
+		GodId.THOR: return "Тор"
+		GodId.HEL: return "Хель"
+		GodId.FREYJA: return "Фрейя"
+	return "Без покровителя"
+
+## Возвращает краткое название типа QTE для подсказок UI
+static func get_qte_display_name(qte_type: QTEType) -> String:
+	match qte_type:
+		QTEType.PRECISION_BAR: return "Центр"
+		QTEType.CIRCULAR_SKILL_CHECK: return "Круг"
+		QTEType.RHYTHM_TRACK: return "Ноты"
+		QTEType.HOLD_RELEASE: return "Удержание"
+		QTEType.SERIES_CHAIN: return "Серия"
+		QTEType.RUNE_SEQUENCE: return "Вязь знаков"
+		QTEType.RUSH_MASH: return "Рывок"
+		QTEType.DICE_ROLL: return "Бросок"
+	return "Нет"

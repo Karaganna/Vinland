@@ -25,6 +25,8 @@ var pending_consumable: ConsumableItemData = null
 var pending_target: Combatant = null
 var pending_target_part: EnemyPartState = null
 var pending_tension_tier: BattleTypes.TensionTier = BattleTypes.TensionTier.LOCKED
+## Метаданные последней завершенной QTE-проверки (например, точное число попаданий в SERIES_CHAIN)
+var last_qte_metadata: Dictionary = {}
 
 ## Буфер текущего действия противника перед/во время защитного QTE
 var enemy_pending_actor: Combatant = null
@@ -55,6 +57,13 @@ func get_alive_players() -> Array[Combatant]:
 	var list: Array[Combatant] = []
 	for c: Combatant in player_party:
 		if c != null and c.is_alive():
+			list.append(c)
+	return list
+
+func get_fallen_players() -> Array[Combatant]:
+	var list: Array[Combatant] = []
+	for c: Combatant in player_party:
+		if c != null and not c.is_alive():
 			list.append(c)
 	return list
 
@@ -198,6 +207,7 @@ func clear_pending_player_action() -> void:
 	pending_target = null
 	pending_target_part = null
 	pending_tension_tier = BattleTypes.TensionTier.LOCKED
+	last_qte_metadata.clear()
 
 func clear_pending_enemy_action() -> void:
 	enemy_pending_actor = null

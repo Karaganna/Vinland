@@ -197,7 +197,7 @@ func _resolve_support_or_self_skill(
 		recipients = _context.get_alive_players()
 	elif skill.target_side == BattleTypes.TargetSide.ALLY:
 		var chosen: Combatant = _context.pending_target
-		if chosen != null and chosen.is_alive():
+		if chosen != null and (chosen.is_alive() or skill.revives_fallen_ally or skill.can_target_fallen_ally):
 			recipients.append(chosen)
 		else:
 			recipients.append(actor)
@@ -237,8 +237,13 @@ func _resolve_support_or_self_skill(
 			)
 		logs.append("Защита отряда -%d%% вх. урона (%d х.)." % [roundi(ward_mag * 100.0), skill.ally_ward_duration_turns])
 	
-	# Исцеление и поглощающий барьер
-	if skill.is_rage_to_heal():
+	# Исцеление, воскрешение павшего и поглощающий барьер
+	if skill.revives_fallen_ally and qte_mult > 0.0:
+		var revive_amt: int = maxi(1, roundi(float(skill.base_heal_amount) * qte_scale * ham_scale))
+		for rec: Combatant in recipients:
+			var revived_val: int = rec.revive_hp(revive_amt)
+			logs.append("%s возвращается в строй (+%d HP)!" % [rec.display_name, revived_val])
+	elif skill.is_rage_to_heal():
 		var conv: Dictionary = actor.resources.convert_rage_to_heal(skill.rage_to_heal_ratio)
 		var rage_spent: int = int(conv.get("rage_spent", 0))
 		var total_heal: int = roundi(float(int(conv.get("heal_amount", 0)) + skill.base_heal_amount) * qte_scale)
@@ -316,9 +321,35 @@ func _resolve_offensive_action(
 	
 	var msg_parts: PackedStringArray = PackedStringArray()
 	var qte_prefix: String = "[QTE: %s x%.1f] " % [qte_tier, qte_mult] if not qte_tier.is_empty() else ""
+	var hits: int = maxi(1, skill.hit_count)
+	
+	# Точный учет числа попаданий из QTE «Серия» (SERIES_CHAIN) и суммы граней «Броска» (DICE_ROLL)
+	if bool(_context.last_qte_metadata.get("is_series", false)):
+		var series_hits: int = int(_context.last_qte_metadata.get("series_hits", 0))
+		var series_max: int = int(_context.last_qte_metadata.get("series_max", hits))
+		if series_hits <= 0:
+			var fail_ham: String = " [Хамингья %+d]" % ham_delta if ham_delta != 0 else ""
+			_refresh_ui()
+			_emit_log("%s срывает серию «%s» на первом ударе (0/%d)!%s" % [
+				actor.display_name,
+				skill.skill_name,
+				series_max,
+				fail_ham
+			])
+			_advance_after_action()
+			return
+		hits = series_hits
+		qte_prefix = "[Серия %d/%d · %s] " % [series_hits, series_max, qte_tier]
+	elif _context.last_qte_metadata.has("dice_sum"):
+		qte_prefix = "[Бросок %d/%d · %s x%.1f] " % [
+			int(_context.last_qte_metadata.get("dice_sum", 0)),
+			int(_context.last_qte_metadata.get("dice_max", 18)),
+			qte_tier,
+			qte_mult
+		]
+	
 	if ham_delta != 0:
 		qte_prefix += "[Хамингья %+d] " % ham_delta
-	var hits: int = maxi(1, skill.hit_count)
 	
 	var dealt_any_damage: bool = false
 	for target: Combatant in targets:

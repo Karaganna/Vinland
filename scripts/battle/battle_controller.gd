@@ -11,6 +11,8 @@ signal qte_requested(config: QTEConfigData, is_defensive: bool)
 @export var rhythm_sync_audio_player: AudioStreamPlayer = null
 @export var auto_start_sandbox: bool = true
 @export var return_to_overworld_on_finish: bool = false
+## Автоматическое прохождение QTE для рядовых боев (задел на будущее + синхронизация с GameManager)
+@export var auto_qte_enabled: bool = false
 
 var context: BattleContext = BattleContext.new()
 
@@ -111,6 +113,7 @@ func execute_consumable_action(actor: Combatant, item: ConsumableItemData) -> St
 
 ## Запускает соответствующую мини-игру QTE внутри qte_slot_container нижней панели
 func request_qte(config: QTEConfigData, is_defensive: bool) -> void:
+	context.last_qte_metadata.clear()
 	qte_requested.emit(config, is_defensive)
 	
 	if _active_qte != null and is_instance_valid(_active_qte):
@@ -119,6 +122,17 @@ func request_qte(config: QTEConfigData, is_defensive: bool) -> void:
 	
 	if config == null or config.qte_type == BattleTypes.QTEType.NONE:
 		complete_qte(1.0, "НОРМАЛЬНО")
+		return
+	
+	var use_auto_qte: bool = auto_qte_enabled or (GameManager != null and GameManager.auto_qte_enabled)
+	if use_auto_qte:
+		if config.qte_type == BattleTypes.QTEType.SERIES_CHAIN:
+			context.last_qte_metadata = {
+				"is_series": true,
+				"series_hits": maxi(1, config.series_max_steps - 1),
+				"series_max": config.series_max_steps
+			}
+		complete_qte(0.78, "НОРМАЛЬНО")
 		return
 	
 	var minigame: BaseQTEMinigame = _create_qte_minigame(config.qte_type)
@@ -137,6 +151,7 @@ func request_qte(config: QTEConfigData, is_defensive: bool) -> void:
 	else:
 		add_child(_active_qte)
 	
+	_active_qte.qte_metadata_reported.connect(_on_qte_metadata_reported)
 	_active_qte.qte_finished.connect(_on_qte_minigame_finished)
 	_active_qte.start_qte(config)
 
@@ -148,7 +163,20 @@ func _create_qte_minigame(qte_type: BattleTypes.QTEType) -> BaseQTEMinigame:
 			return CircularSkillCheckQTE.new()
 		BattleTypes.QTEType.RHYTHM_TRACK:
 			return RhythmTrackQTE.new()
+		BattleTypes.QTEType.HOLD_RELEASE:
+			return HoldReleaseQTE.new()
+		BattleTypes.QTEType.SERIES_CHAIN:
+			return SeriesChainQTE.new()
+		BattleTypes.QTEType.RUNE_SEQUENCE:
+			return RuneSequenceQTE.new()
+		BattleTypes.QTEType.RUSH_MASH:
+			return RushMashQTE.new()
+		BattleTypes.QTEType.DICE_ROLL:
+			return DiceRollQTE.new()
 	return null
+
+func _on_qte_metadata_reported(metadata: Dictionary) -> void:
+	context.last_qte_metadata = metadata.duplicate()
 
 func _on_qte_minigame_finished(accuracy: float, success_tier: String) -> void:
 	_active_qte = null

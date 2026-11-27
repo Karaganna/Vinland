@@ -2,8 +2,10 @@
 class_name BattleUIBuilder
 extends RefCounted
 
-## Процедурный сборщик боевого UI для базового Viewport 640x360
-## Отображает у ГГ ровно одну рабочую шкалу «Поток (режим)» + шкалу ульты «Напряжение»
+## Процедурный сборщик боевого UI под базовый Viewport 640x360 для отряда до 4 бойцов
+## Левая колонка арены (x=12..308, y=12..204) содержит 4 компактные карточки по 45 px без наложений
+
+const MAX_PARTY_CARDS: int = 4
 
 static func build_sandbox_ui(root: Control) -> Dictionary:
 	if root == null:
@@ -13,7 +15,7 @@ static func build_sandbox_ui(root: Control) -> Dictionary:
 	root.size = Vector2(640.0, 360.0)
 	root.custom_minimum_size = Vector2(640.0, 360.0)
 	
-	# 1. Фон и верхняя боевая арена (y = 0..210)
+	# 1. Фон и верхняя боевая арена (y = 8..208)
 	var bg: ColorRect = ColorRect.new()
 	bg.name = "ArenaBackground"
 	bg.size = Vector2(640.0, 360.0)
@@ -36,91 +38,48 @@ static func build_sandbox_ui(root: Control) -> Dictionary:
 	arena_border.editor_only = false
 	root.add_child(arena_border)
 	
-	# Верхний баннер телеграфа
-	var telegraph_banner: Label = Label.new()
-	telegraph_banner.name = "TelegraphBanner"
-	telegraph_banner.position = Vector2(16.0, 10.0)
-	telegraph_banner.size = Vector2(608.0, 20.0)
-	telegraph_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	telegraph_banner.add_theme_font_size_override("font_size", 11)
-	telegraph_banner.modulate = Color(1.0, 0.45, 0.22, 1.0)
+	# 2. Левая колонка арены: до 4 карточек бойцов отряда (4 * 45 + 3 * 3 = 189 px в y=13..202)
+	var party_vbox: VBoxContainer = VBoxContainer.new()
+	party_vbox.name = "PartyCardsVBox"
+	party_vbox.position = Vector2(14.0, 13.0)
+	party_vbox.size = Vector2(296.0, 190.0)
+	party_vbox.add_theme_constant_override("separation", 3)
+	root.add_child(party_vbox)
+	
+	var party_cards: Array[Dictionary] = []
+	for idx: int in range(MAX_PARTY_CARDS):
+		var card_dict: Dictionary = _create_party_member_card(idx)
+		party_vbox.add_child(card_dict["panel"] as PanelContainer)
+		party_cards.append(card_dict)
+	
+	# 3. Правая сторона арены (x = 320..624): Баннер телеграфа + Противник + части тела
+	var telegraph_banner: Label = _create_label("TelegraphBanner", Vector2(318.0, 11.0), Vector2(308.0, 26.0), "", 9, HORIZONTAL_ALIGNMENT_RIGHT)
+	telegraph_banner.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	telegraph_banner.modulate = Color(1.0, 0.48, 0.22, 1.0)
 	telegraph_banner.visible = false
 	root.add_child(telegraph_banner)
 	
-	# 2. Левая сторона: Активный боец (HP + единственная рабочая шкала «Поток»/бак + Напряжение)
-	var player_name_lbl: Label = _create_label("PlayerNameLabel", Vector2(18.0, 32.0), Vector2(262.0, 18.0), "Герой", 12)
-	root.add_child(player_name_lbl)
-	
-	var hero_tex_path: String = "res://assets/sprites/player/walk/right/sprite_0.png"
-	if ResourceLoader.exists(hero_tex_path):
-		var hero_spr: Sprite2D = Sprite2D.new()
-		hero_spr.name = "HeroSprite"
-		hero_spr.texture = load(hero_tex_path) as Texture2D
-		hero_spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		hero_spr.scale = Vector2(1.5, 1.5)
-		hero_spr.position = Vector2(54.0, 102.0)
-		root.add_child(hero_spr)
-	else:
-		var hero_rect: ColorRect = ColorRect.new()
-		hero_rect.name = "HeroPlaceholder"
-		hero_rect.position = Vector2(34.0, 68.0)
-		hero_rect.size = Vector2(44.0, 56.0)
-		hero_rect.color = Color(0.25, 0.55, 0.90, 1.0)
-		root.add_child(hero_rect)
-	
-	var res_x: float = 96.0
-	var res_w: float = 192.0
-	var player_hp_bar: ProgressBar = _create_bar("PlayerHPBar", Vector2(res_x, 54.0), Vector2(res_w, 14.0), Color(0.22, 0.78, 0.34, 1.0))
-	root.add_child(player_hp_bar)
-	var player_hp_lbl: Label = _create_label("PlayerHPLabel", Vector2(res_x + 4.0, 53.0), Vector2(res_w - 8.0, 15.0), "HP: 140/140", 9, HORIZONTAL_ALIGNMENT_CENTER)
-	root.add_child(player_hp_lbl)
-	
-	var working_row: Dictionary = _create_resource_row(
-		root,
-		"WorkingResource",
-		BattleTypes.get_flow_display_label(BattleTypes.ResourceType.ENERGY),
-		Vector2(res_x, 75.0),
-		res_w,
-		68.0,
-		BattleTypes.get_resource_color(BattleTypes.ResourceType.ENERGY)
-	)
-	var tension_row: Dictionary = _create_resource_row(
-		root,
-		"Tension",
-		"Напряж.",
-		Vector2(res_x, 95.0),
-		res_w,
-		68.0,
-		BattleTypes.get_resource_color(BattleTypes.ResourceType.TENSION)
-	)
-	
-	var player_statuses_lbl: Label = _create_label("PlayerStatusesLabel", Vector2(18.0, 126.0), Vector2(272.0, 72.0), "", 9)
-	player_statuses_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	player_statuses_lbl.modulate = Color(0.78, 0.90, 1.0, 1.0)
-	root.add_child(player_statuses_lbl)
-	
-	# 3. Правая сторона: Противник + части тела
-	var enemy_name_lbl: Label = _create_label("EnemyNameLabel", Vector2(364.0, 32.0), Vector2(258.0, 18.0), "Противник", 12, HORIZONTAL_ALIGNMENT_RIGHT)
+	var enemy_name_lbl: Label = _create_label("EnemyNameLabel", Vector2(320.0, 38.0), Vector2(304.0, 16.0), "Противник", 11, HORIZONTAL_ALIGNMENT_RIGHT)
 	root.add_child(enemy_name_lbl)
 	
 	var enemy_visual: ColorRect = ColorRect.new()
 	enemy_visual.name = "EnemyVisualRect"
-	enemy_visual.position = Vector2(544.0, 74.0)
-	enemy_visual.size = Vector2(68.0, 82.0)
+	enemy_visual.position = Vector2(552.0, 76.0)
+	enemy_visual.size = Vector2(64.0, 80.0)
 	enemy_visual.color = Color(0.75, 0.20, 0.16, 1.0)
 	root.add_child(enemy_visual)
 	
-	var enemy_hp_bar: ProgressBar = _create_bar("EnemyHPBar", Vector2(364.0, 54.0), Vector2(170.0, 13.0), Color(0.86, 0.24, 0.24, 1.0))
+	var enemy_hp_bar: ProgressBar = _create_bar("EnemyHPBar", Vector2(346.0, 56.0), Vector2(196.0, 13.0), Color(0.86, 0.24, 0.24, 1.0))
 	root.add_child(enemy_hp_bar)
-	var enemy_hp_lbl: Label = _create_label("EnemyHPLabel", Vector2(368.0, 52.0), Vector2(162.0, 15.0), "HP: 220/220", 9, HORIZONTAL_ALIGNMENT_CENTER)
+	var enemy_hp_lbl: Label = _create_label("EnemyHPLabel", Vector2(350.0, 54.0), Vector2(188.0, 15.0), "HP: 380/380", 9, HORIZONTAL_ALIGNMENT_CENTER)
 	root.add_child(enemy_hp_lbl)
 	
-	var enemy_parts_lbl: Label = _create_label("EnemyPartsLabel", Vector2(364.0, 72.0), Vector2(172.0, 86.0), "", 9)
+	var enemy_parts_lbl: Label = _create_label("EnemyPartsLabel", Vector2(324.0, 74.0), Vector2(220.0, 84.0), "", 9)
 	enemy_parts_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	enemy_parts_lbl.modulate = Color(0.95, 0.90, 0.72, 1.0)
 	root.add_child(enemy_parts_lbl)
 	
-	var enemy_statuses_lbl: Label = _create_label("EnemyStatusesLabel", Vector2(364.0, 162.0), Vector2(258.0, 38.0), "", 9, HORIZONTAL_ALIGNMENT_RIGHT)
+	var enemy_statuses_lbl: Label = _create_label("EnemyStatusesLabel", Vector2(324.0, 162.0), Vector2(298.0, 40.0), "", 9, HORIZONTAL_ALIGNMENT_RIGHT)
 	enemy_statuses_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	enemy_statuses_lbl.modulate = Color(1.0, 0.80, 0.72, 1.0)
 	root.add_child(enemy_statuses_lbl)
@@ -147,7 +106,7 @@ static func build_sandbox_ui(root: Control) -> Dictionary:
 	hbox.add_theme_constant_override("separation", 6)
 	bottom_panel.add_child(hbox)
 	
-	# Левая колонка: 5 кнопок меню
+	# Левая колонка нижней панели: 5 кнопок меню
 	var action_menu: VBoxContainer = VBoxContainer.new()
 	action_menu.name = "ActionMenuContainer"
 	action_menu.custom_minimum_size = Vector2(150.0, 128.0)
@@ -168,7 +127,7 @@ static func build_sandbox_ui(root: Control) -> Dictionary:
 	var vsep: VSeparator = VSeparator.new()
 	hbox.add_child(vsep)
 	
-	# Правая колонка: лог боя сверху + подменю / слот QTE снизу
+	# Правая колонка нижней панели: лог боя сверху + подменю / слот QTE снизу
 	var right_col: VBoxContainer = VBoxContainer.new()
 	right_col.name = "RightInteractionColumn"
 	right_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -211,6 +170,7 @@ static func build_sandbox_ui(root: Control) -> Dictionary:
 	qte_slot.visible = false
 	lower_area.add_child(qte_slot)
 	
+	var first_card: Dictionary = party_cards[0]
 	return {
 		"attack_button": attack_btn,
 		"skill_button": skill_btn,
@@ -221,15 +181,15 @@ static func build_sandbox_ui(root: Control) -> Dictionary:
 		"sub_menu_scroll": sub_scroll,
 		"sub_menu_container": sub_menu,
 		"qte_slot_container": qte_slot,
-		"player_name_label": player_name_lbl,
-		"player_hp_bar": player_hp_bar,
-		"player_hp_label": player_hp_lbl,
-		"working_resource_tag_label": working_row["tag_label"],
-		"working_resource_bar": working_row["bar"],
-		"working_resource_value_label": working_row["val_label"],
-		"tension_bar": tension_row["bar"],
-		"tension_value_label": tension_row["val_label"],
-		"player_statuses_label": player_statuses_lbl,
+		"party_cards": party_cards,
+		"player_name_label": first_card["name_label"],
+		"player_hp_bar": first_card["hp_bar"],
+		"player_hp_label": first_card["hp_label"],
+		"working_resource_bar": first_card["res_bar"],
+		"working_resource_value_label": first_card["res_label"],
+		"tension_bar": first_card["tension_bar"],
+		"tension_value_label": first_card["tension_label"],
+		"player_statuses_label": first_card["status_label"],
 		"enemy_name_label": enemy_name_lbl,
 		"enemy_hp_bar": enemy_hp_bar,
 		"enemy_hp_label": enemy_hp_lbl,
@@ -239,6 +199,117 @@ static func build_sandbox_ui(root: Control) -> Dictionary:
 		"telegraph_banner_label": telegraph_banner,
 		"combat_log_label": log_lbl
 	}
+
+static func _create_party_member_card(index: int) -> Dictionary:
+	var card: PanelContainer = PanelContainer.new()
+	card.name = "PartyMemberCard_%d" % index
+	card.custom_minimum_size = Vector2(296.0, 45.0)
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = Color(0.13, 0.16, 0.23, 0.94)
+	style.border_color = Color(0.30, 0.36, 0.50, 0.95)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(3)
+	style.content_margin_left = 4.0
+	style.content_margin_right = 4.0
+	style.content_margin_top = 2.0
+	style.content_margin_bottom = 2.0
+	card.add_theme_stylebox_override("panel", style)
+	
+	var row_hbox: HBoxContainer = HBoxContainer.new()
+	row_hbox.add_theme_constant_override("separation", 5)
+	card.add_child(row_hbox)
+	
+	# Цветной индикатор / портретная плашка бойца
+	var badge: ColorRect = ColorRect.new()
+	badge.name = "BadgeRect"
+	badge.custom_minimum_size = Vector2(18.0, 38.0)
+	badge.color = Color(0.25, 0.58, 0.94, 1.0)
+	row_hbox.add_child(badge)
+	
+	if index == 0 and ResourceLoader.exists("res://assets/sprites/player/walk/right/sprite_0.png"):
+		var mini_spr: Sprite2D = Sprite2D.new()
+		mini_spr.texture = load("res://assets/sprites/player/walk/right/sprite_0.png") as Texture2D
+		mini_spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		mini_spr.scale = Vector2(0.55, 0.55)
+		mini_spr.position = Vector2(9.0, 19.0)
+		badge.add_child(mini_spr)
+	
+	var info_vbox: VBoxContainer = VBoxContainer.new()
+	info_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info_vbox.add_theme_constant_override("separation", 1)
+	row_hbox.add_child(info_vbox)
+	
+	# Строка 1: Имя бойца + краткие статусы
+	var top_hbox: HBoxContainer = HBoxContainer.new()
+	top_hbox.add_theme_constant_override("separation", 4)
+	info_vbox.add_child(top_hbox)
+	
+	var name_lbl: Label = Label.new()
+	name_lbl.name = "NameLabel"
+	name_lbl.text = "Боец %d" % (index + 1)
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_lbl.clip_text = true
+	name_lbl.add_theme_font_size_override("font_size", 9)
+	top_hbox.add_child(name_lbl)
+	
+	var status_lbl: Label = Label.new()
+	status_lbl.name = "StatusLabel"
+	status_lbl.text = ""
+	status_lbl.custom_minimum_size = Vector2(112.0, 12.0)
+	status_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	status_lbl.clip_text = true
+	status_lbl.add_theme_font_size_override("font_size", 8)
+	status_lbl.modulate = Color(0.80, 0.92, 1.0, 1.0)
+	top_hbox.add_child(status_lbl)
+	
+	# Строка 2: HP (слева) + Напряжение Ульты (справа)
+	var mid_hbox: HBoxContainer = HBoxContainer.new()
+	mid_hbox.add_theme_constant_override("separation", 4)
+	info_vbox.add_child(mid_hbox)
+	
+	var hp_pair: Dictionary = _create_compact_overlay_bar("HP", Vector2(142.0, 11.0), Color(0.22, 0.78, 0.34, 1.0))
+	mid_hbox.add_child(hp_pair["holder"] as Control)
+	
+	var tension_pair: Dictionary = _create_compact_overlay_bar("Tension", Vector2(116.0, 11.0), BattleTypes.get_resource_color(BattleTypes.ResourceType.TENSION))
+	mid_hbox.add_child(tension_pair["holder"] as Control)
+	
+	# Строка 3: Рабочий бак («Поток (режим)» у ГГ или единственный бак у рекрута)
+	var res_pair: Dictionary = _create_compact_overlay_bar("WorkingRes", Vector2(262.0, 11.0), BattleTypes.get_resource_color(BattleTypes.ResourceType.ENERGY))
+	info_vbox.add_child(res_pair["holder"] as Control)
+	
+	return {
+		"panel": card,
+		"style": style,
+		"badge": badge,
+		"name_label": name_lbl,
+		"status_label": status_lbl,
+		"hp_bar": hp_pair["bar"],
+		"hp_label": hp_pair["label"],
+		"tension_bar": tension_pair["bar"],
+		"tension_label": tension_pair["label"],
+		"res_bar": res_pair["bar"],
+		"res_label": res_pair["label"]
+	}
+
+static func _create_compact_overlay_bar(p_prefix: String, p_size: Vector2, fill_col: Color) -> Dictionary:
+	var holder: Control = Control.new()
+	holder.name = p_prefix + "Holder"
+	holder.custom_minimum_size = p_size
+	holder.size = p_size
+	
+	var bar: ProgressBar = _create_bar(p_prefix + "Bar", Vector2.ZERO, p_size, fill_col)
+	bar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	holder.add_child(bar)
+	
+	var lbl: Label = Label.new()
+	lbl.name = p_prefix + "Text"
+	lbl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.add_theme_font_size_override("font_size", 8)
+	holder.add_child(lbl)
+	
+	return {"holder": holder, "bar": bar, "label": lbl}
 
 static func _create_label(
 	p_name: String,
@@ -265,7 +336,7 @@ static func _create_bar(p_name: String, p_pos: Vector2, p_size: Vector2, fill_co
 	bar.show_percentage = false
 	
 	var bg_st: StyleBoxFlat = StyleBoxFlat.new()
-	bg_st.bg_color = Color(0.14, 0.16, 0.22, 1.0)
+	bg_st.bg_color = Color(0.10, 0.12, 0.17, 1.0)
 	bg_st.set_corner_radius_all(2)
 	bar.add_theme_stylebox_override("background", bg_st)
 	
@@ -274,29 +345,6 @@ static func _create_bar(p_name: String, p_pos: Vector2, p_size: Vector2, fill_co
 	fill_st.set_corner_radius_all(2)
 	bar.add_theme_stylebox_override("fill", fill_st)
 	return bar
-
-static func _create_resource_row(
-	parent: Control,
-	p_prefix: String,
-	short_tag: String,
-	pos: Vector2,
-	total_w: float,
-	tag_w: float,
-	fill_color: Color
-) -> Dictionary:
-	var tag_lbl: Label = _create_label(p_prefix + "Tag", pos + Vector2(0.0, -1.0), Vector2(tag_w, 15.0), short_tag, 9)
-	tag_lbl.modulate = Color(0.88, 0.92, 0.98, 1.0)
-	parent.add_child(tag_lbl)
-	
-	var bar_x: float = tag_w + 4.0
-	var bar_w: float = maxf(48.0, total_w - bar_x)
-	var bar: ProgressBar = _create_bar(p_prefix + "Bar", pos + Vector2(bar_x, 0.0), Vector2(bar_w, 13.0), fill_color)
-	parent.add_child(bar)
-	
-	var val_lbl: Label = _create_label(p_prefix + "ValueLabel", pos + Vector2(bar_x, -1.0), Vector2(bar_w, 14.0), "0/100", 8, HORIZONTAL_ALIGNMENT_CENTER)
-	parent.add_child(val_lbl)
-	
-	return {"tag_label": tag_lbl, "bar": bar, "val_label": val_lbl}
 
 static func _create_menu_button(p_name: String, p_text: String) -> Button:
 	var btn: Button = Button.new()

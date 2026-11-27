@@ -32,6 +32,8 @@ extends Resource
 @export_range(0.0, 1.0, 0.05) var rage_to_heal_ratio: float = 0.0
 @export var base_heal_amount: int = 0
 @export var shield_barrier_amount: int = 0
+@export var can_target_fallen_ally: bool = false
+@export var revives_fallen_ally: bool = false
 @export var applies_ally_ward: bool = false
 @export_range(0.0, 0.9, 0.05) var ally_ward_damage_reduction: float = 0.25
 @export var ally_ward_duration_turns: int = 2

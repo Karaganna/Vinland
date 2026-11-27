@@ -95,12 +95,19 @@ static func create_dragonblood_greatsword() -> EquipmentItemData:
 	pierce_skill.requires_qte = true
 	pierce_skill.qte_config = pierce_qte
 	
-	# В Фазе 3 QTE «Рассекающего удара» будет переключен на новый модуль HOLD (Удержание)
-	var cleave_qte: QTEConfigData = _make_precision_qte(2.6, 1.45, 0.22, 0.08)
+	# «Рассекающий удар» Меча из крови дракона использует QTE «Удержание» (HOLD_RELEASE)
+	var cleave_qte: QTEConfigData = QTEConfigData.new()
+	cleave_qte.qte_type = BattleTypes.QTEType.HOLD_RELEASE
+	cleave_qte.duration_seconds = 2.8
+	cleave_qte.hold_target_center = 0.76
+	cleave_qte.hold_charge_speed = 0.72
+	cleave_qte.success_zone_width = 0.22
+	cleave_qte.perfect_zone_width = 0.08
+	
 	var cleave_skill: SkillData = SkillData.new()
 	cleave_skill.skill_id = "dragonblood_cleave"
 	cleave_skill.skill_name = "Рассекающий удар"
-	cleave_skill.description = "Тяжёлый пробивной удар клинком дракона. Пробивает блок цели; скейлится от Потока (Ярость)."
+	cleave_skill.description = "Тяжёлый пробивной удар (QTE Удержание). Пробивает блок цели; скейлится от Потока (Ярость)."
 	cleave_skill.action_category = BattleTypes.ActionType.SKILL
 	cleave_skill.target_side = BattleTypes.TargetSide.ENEMY
 	cleave_skill.resource_type = BattleTypes.ResourceType.RAGE

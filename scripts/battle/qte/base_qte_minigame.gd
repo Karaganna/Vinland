@@ -2,14 +2,16 @@
 class_name BaseQTEMinigame
 extends Control
 
-## Единый сигнал завершения QTE мини-игры
+## Единый сигнал завершения QTE мини-игры + опциональный сигнал метаданных (серия ударов, сумма граней)
 signal qte_finished(accuracy: float, success_tier: String)
+signal qte_metadata_reported(metadata: Dictionary)
 
 var _config: QTEConfigData = null
 var _is_running: bool = false
 var _start_usec: int = 0
 var _audio_player: AudioStreamPlayer = null
 var _audio_start_offset_sec: float = 0.0
+var result_metadata: Dictionary = {}
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -22,6 +24,7 @@ func set_audio_sync_player(player: AudioStreamPlayer) -> void:
 ## Единый контракт запуска мини-игры QTE
 func start_qte(config: QTEConfigData) -> void:
 	_config = config if config != null else QTEConfigData.new()
+	result_metadata.clear()
 	_release_ui_focus()
 	_begin_clock()
 	_is_running = true
@@ -67,6 +70,24 @@ func _is_hit_action_pressed(event: InputEvent) -> bool:
 		return true
 	return false
 
+## Проверяет отпускание подтверждающего действия строго через InputMap (для QTE Удержание)
+func _is_hit_action_released(event: InputEvent) -> bool:
+	if InputMap.has_action("rhythm_hit") and event.is_action_released("rhythm_hit"):
+		return true
+	if InputMap.has_action("interact") and event.is_action_released("interact"):
+		return true
+	if event.is_action_released("ui_accept"):
+		return true
+	return false
+
+## Проверяет, удерживается ли сейчас любая кнопка действия через Input
+func _is_any_hit_action_currently_held() -> bool:
+	if InputMap.has_action("rhythm_hit") and Input.is_action_pressed("rhythm_hit"):
+		return true
+	if InputMap.has_action("interact") and Input.is_action_pressed("interact"):
+		return true
+	return Input.is_action_pressed("ui_accept")
+
 func _release_ui_focus() -> void:
 	var viewport: Viewport = get_viewport()
 	if viewport == null:
@@ -90,5 +111,7 @@ func _complete_qte(raw_accuracy: float) -> void:
 	if is_inside_tree():
 		await get_tree().create_timer(0.35).timeout
 	
+	if not result_metadata.is_empty():
+		qte_metadata_reported.emit(result_metadata.duplicate())
 	qte_finished.emit(acc, tier_label)
 	queue_free()

@@ -211,15 +211,25 @@ func _open_target_selection_or_execute(skill: SkillData) -> void:
 		return
 	
 	if skill.target_side == BattleTypes.TargetSide.ALLY:
-		var alive_allies: Array[Combatant] = _context.get_alive_players()
-		var exclude_self: bool = skill.enters_stance and skill.stance_status == BattleTypes.StatusType.COVER_ALLY
 		var candidates: Array[Combatant] = []
-		for ally: Combatant in alive_allies:
-			if exclude_self and ally == actor:
-				continue
-			candidates.append(ally)
-		if candidates.is_empty():
-			candidates = alive_allies
+		if skill.revives_fallen_ally:
+			candidates = _context.get_fallen_players()
+			if candidates.is_empty():
+				_emit_log("В отряде нет павших бойцов для «%s»." % skill.skill_name)
+				return
+		elif skill.can_target_fallen_ally:
+			for m: Combatant in _context.player_party:
+				if m != null:
+					candidates.append(m)
+		else:
+			var alive_allies: Array[Combatant] = _context.get_alive_players()
+			var exclude_self: bool = skill.enters_stance and skill.stance_status == BattleTypes.StatusType.COVER_ALLY
+			for ally: Combatant in alive_allies:
+				if exclude_self and ally == actor:
+					continue
+				candidates.append(ally)
+			if candidates.is_empty():
+				candidates = alive_allies
 		if candidates.size() == 1:
 			_context.pending_target = candidates[0]
 			_context.pending_target_part = null

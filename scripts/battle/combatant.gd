@@ -14,10 +14,13 @@ signal telegraph_cleared()
 
 var runtime_id: String = ""
 var display_name: String = "Боец"
+var role_title: String = ""
 var is_player_controlled: bool = false
 var is_hero: bool = false
 var is_viking: bool = true
 var primary_resource: BattleTypes.ResourceType = BattleTypes.ResourceType.ENERGY
+var ancestral_rune_id: StringName = &""
+var patron_god: BattleTypes.GodId = BattleTypes.GodId.NONE
 var sprite_color: Color = Color.WHITE
 
 var stats: CombatStatsData = null
@@ -68,9 +71,12 @@ static func from_combatant_data(
 	
 	c.runtime_id = p_runtime_id if not p_runtime_id.is_empty() else data.combatant_id
 	c.display_name = data.display_name
+	c.role_title = data.role_title
 	c.is_player_controlled = data.is_player_controlled
 	c.is_hero = data.is_hero
 	c.is_viking = data.is_viking
+	c.ancestral_rune_id = data.ancestral_rune_id
+	c.patron_god = data.patron_god
 	c.sprite_color = data.sprite_color
 	c.stats = data.stats.create_copy() if data.stats != null else CombatStatsData.new()
 	
@@ -86,12 +92,25 @@ static func from_combatant_data(
 	c.current_hp = c.max_hp
 	
 	c.basic_attack = data.basic_attack
-	c.skills = data.skills.duplicate()
+	c.skills.clear()
+	var seen_skill_ids: Array[String] = []
+	for p_sk: SkillData in data.personal_skills:
+		if p_sk == null:
+			continue
+		if not p_sk.skill_id.is_empty() and seen_skill_ids.has(p_sk.skill_id):
+			continue
+		if not p_sk.skill_id.is_empty():
+			seen_skill_ids.append(p_sk.skill_id)
+		c.skills.append(p_sk)
+	for existing_sk: SkillData in data.skills:
+		if existing_sk == null:
+			continue
+		if not existing_sk.skill_id.is_empty() and seen_skill_ids.has(existing_sk.skill_id):
+			continue
+		if not existing_sk.skill_id.is_empty():
+			seen_skill_ids.append(existing_sk.skill_id)
+		c.skills.append(existing_sk)
 	if c.equipment_loadout != null:
-		var seen_skill_ids: Array[String] = []
-		for existing_sk: SkillData in c.skills:
-			if existing_sk != null and not existing_sk.skill_id.is_empty():
-				seen_skill_ids.append(existing_sk.skill_id)
 		for granted_sk: SkillData in c.equipment_loadout.get_granted_skills(synergy_catalog):
 			if granted_sk == null:
 				continue
@@ -630,6 +649,14 @@ func heal_hp(amount: int, is_external: bool = true, burn_rage_if_self: bool = tr
 	elif burn_rage_if_self:
 		resources.burn_rage_on_self_heal()
 	return healed
+
+## Возвращает павшего союзника в строй с указанным здоровьем
+func revive_hp(amount: int) -> int:
+	if is_alive():
+		return heal_hp(amount, true, false)
+	current_hp = clampi(maxi(1, amount), 1, max_hp)
+	hp_changed.emit(current_hp, max_hp)
+	return current_hp
 
 ## Legacy-метод шкалы Завета (оставлен для совместимости, в активном боевом цикле не используется)
 func add_resolve(amount: int) -> int:

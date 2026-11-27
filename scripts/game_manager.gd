@@ -5,6 +5,7 @@ extends Node
 signal battle_started(enemy: EnemyData)
 signal battle_ended(victory: bool, by_vow: bool)
 signal location_changed(location_id: String)
+signal party_changed()
 
 const DEFAULT_BATTLE_SCENE_PATH: String = "res://scenes/battle_sandbox.tscn"
 
@@ -25,13 +26,18 @@ var active_encounter_id: String = ""
 ## Реестр побежденных одноразовых энкаунтеров {encounter_id: true}
 var defeated_encounters: Dictionary = {}
 
-## Активный отряд игрока (задел под до 4 бойцов) и снимки сохраняемых HP / Маны
+## Активный отряд игрока (до 4 бойцов, слот 0 закреплен за ГГ) и резерв на корабле (ship_roster)
+var active_party: Array[CombatantData] = []
 var party_roster: Array[CombatantData] = []
+var ship_roster: Array[CombatantData] = []
 var party_runtime_snapshots: Dictionary = {}
 
 ## Глобальный инвентарь отряда и каталог парных оружейных синергий
 var inventory: InventoryState = null
 var synergy_catalog: Array[WeaponSynergyData] = []
+
+## Глобальный флаг автопрохождения QTE для рядовых боев (по умолчанию выключен)
+@export var auto_qte_enabled: bool = false
 
 ## Текущая активная локация мира ("home" или "village")
 var current_location_id: String = "home"
@@ -56,12 +62,76 @@ func ensure_inventory_initialized() -> void:
 	if inventory == null:
 		inventory = InventorySandboxFactory.create_starter_inventory()
 
-## Инициализирует отряд игрока стартовым героем и инвентарем, если отряд еще пуст
+## Инициализирует отряд игрока (4 активных бойца + 2 рекрута в резерве на корабле), если отряд еще пуст
 func ensure_party_initialized() -> void:
 	ensure_inventory_initialized()
-	if not party_roster.is_empty():
+	if not active_party.is_empty():
+		party_roster = active_party
 		return
-	party_roster.append(BattleSandboxFactory.create_sandbox_hero())
+	if not party_roster.is_empty():
+		active_party = party_roster
+		return
+	for m: CombatantData in BattleSandboxFactory.create_sandbox_active_party_data():
+		if m != null:
+			active_party.append(m)
+	ship_roster.clear()
+	for s: CombatantData in BattleSandboxFactory.create_sandbox_ship_roster_data():
+		if s != null:
+			ship_roster.append(s)
+	party_roster = active_party
+
+## Меняет местами рекрута из активного отряда (слоты 1..3) и рекрута с корабля (слот 0 закреплен за ГГ)
+func swap_party_and_ship_member(party_idx: int, ship_idx: int) -> Dictionary:
+	ensure_party_initialized()
+	if party_idx <= 0:
+		return {"ok": false, "reason": "Главный герой всегда остаётся лидером в слоте 1."}
+	if party_idx >= active_party.size() or ship_idx < 0 or ship_idx >= ship_roster.size():
+		return {"ok": false, "reason": "Некорректный слот ротации отряда."}
+	var from_party: CombatantData = active_party[party_idx]
+	var from_ship: CombatantData = ship_roster[ship_idx]
+	if from_party != null and from_party.is_hero:
+		return {"ok": false, "reason": "Главного героя нельзя отправить в резерв на корабль."}
+	active_party[party_idx] = from_ship
+	ship_roster[ship_idx] = from_party
+	party_roster = active_party
+	party_changed.emit()
+	return {
+		"ok": true,
+		"reason": "%s вступает в отряд вместо %s." % [
+			from_ship.display_name if from_ship != null else "Рекрут",
+			from_party.display_name if from_party != null else "Рекрут"
+		]
+	}
+
+## Переводит рекрута из активного отряда в резерв на корабль (минимум 1 ГГ остается в отряде)
+func send_party_member_to_ship(party_idx: int) -> Dictionary:
+	ensure_party_initialized()
+	if party_idx <= 0 or party_idx >= active_party.size():
+		return {"ok": false, "reason": "Главный герой не может покинуть отряд."}
+	var member: CombatantData = active_party[party_idx]
+	if member != null and member.is_hero:
+		return {"ok": false, "reason": "Главный герой не может покинуть отряд."}
+	active_party.remove_at(party_idx)
+	if member != null:
+		ship_roster.append(member)
+	party_roster = active_party
+	party_changed.emit()
+	return {"ok": true, "reason": "%s отправлен в резерв на драккар." % (member.display_name if member != null else "Рекрут")}
+
+## Добавляет рекрута с корабля в свободный слот активного отряда (если в отряде < 4 бойцов)
+func add_ship_member_to_party(ship_idx: int) -> Dictionary:
+	ensure_party_initialized()
+	if active_party.size() >= BattleContext.MAX_PLAYER_PARTY_SIZE:
+		return {"ok": false, "reason": "В активном отряде уже 4 бойца — выберите замену."}
+	if ship_idx < 0 or ship_idx >= ship_roster.size():
+		return {"ok": false, "reason": "Некорректный индекс резерва корабля."}
+	var member: CombatantData = ship_roster[ship_idx]
+	ship_roster.remove_at(ship_idx)
+	if member != null:
+		active_party.append(member)
+	party_roster = active_party
+	party_changed.emit()
+	return {"ok": true, "reason": "%s присоединился к активному отряду." % (member.display_name if member != null else "Рекрут")}
 
 ## Собирает runtime-отряд игрока (до 4 бойцов) с переносом HP и Маны и сбросом Энергии/Ярости/Напряжения
 func build_player_party_for_battle() -> Array[Combatant]:
@@ -80,7 +150,8 @@ func build_player_party_for_battle() -> Array[Combatant]:
 			var snap: Dictionary = party_runtime_snapshots[member_id] as Dictionary
 			if snap.has("current_hp"):
 				var saved_hp: int = int(snap.get("current_hp", combatant.max_hp))
-				combatant.current_hp = clampi(saved_hp, 0, combatant.max_hp)
+				# Выживший после победы отряд приводит павших бойцов в чувство с минимум 1 HP
+				combatant.current_hp = clampi(maxi(1, saved_hp), 1, combatant.max_hp)
 			if bool(snap.get("has_mana", false)) and combatant.resources.has_resource(BattleTypes.ResourceType.MANA):
 				var saved_mana: int = int(snap.get("current_mana", combatant.resources.get_current(BattleTypes.ResourceType.MANA)))
 				combatant.resources.set_current(BattleTypes.ResourceType.MANA, saved_mana)
@@ -102,8 +173,11 @@ func build_player_party_for_battle() -> Array[Combatant]:
 func rest_at_camp() -> void:
 	ensure_party_initialized()
 	party_runtime_snapshots.clear()
-	for i: int in range(party_roster.size()):
-		var member_data: CombatantData = party_roster[i]
+	var all_members: Array[CombatantData] = []
+	all_members.append_array(active_party)
+	all_members.append_array(ship_roster)
+	for i: int in range(all_members.size()):
+		var member_data: CombatantData = all_members[i]
 		if member_data == null:
 			continue
 		var member_id: String = _resolve_member_id(member_data, i)
@@ -126,7 +200,10 @@ func get_party_member_status(member_data: CombatantData) -> Dictionary:
 	if member_data == null:
 		return {}
 	var idx: int = party_roster.find(member_data)
-	var member_id: String = _resolve_member_id(member_data, maxi(0, idx))
+	if idx < 0:
+		var ship_idx: int = ship_roster.find(member_data)
+		idx = (10 + ship_idx) if ship_idx >= 0 else 0
+	var member_id: String = _resolve_member_id(member_data, idx)
 	var preview: Combatant = Combatant.from_combatant_data(member_data, member_id, synergy_catalog)
 	var cur_hp: int = preview.max_hp
 	var cur_mana: int = preview.resources.get_current(BattleTypes.ResourceType.MANA)
@@ -143,7 +220,15 @@ func get_party_member_status(member_data: CombatantData) -> Dictionary:
 	return {
 		"combatant_id": member_id,
 		"display_name": preview.display_name,
+		"role_title": member_data.role_title,
 		"is_hero": preview.is_hero,
+		"is_viking": preview.is_viking,
+		"weapon_category": member_data.weapon_category,
+		"can_wear_heavy": member_data.can_wear_heavy,
+		"available_hands": member_data.equipment_loadout.available_hands if member_data.equipment_loadout != null else 2,
+		"gifts": member_data.gifts,
+		"ancestral_rune_id": member_data.ancestral_rune_id,
+		"patron_god": member_data.patron_god,
 		"working_resource_name": preview.resources.get_working_display_name(),
 		"working_resource_type": preview.resources.get_working_resource_type(),
 		"has_flow_passive": preview.equipment_loadout != null and not preview.equipment_loadout.get_flow_threshold_items().is_empty(),
@@ -358,7 +443,8 @@ func _apply_party_snapshots(party_snapshot: Array[Dictionary], restore_base_hp: 
 		if cid.is_empty():
 			continue
 		var max_hp_val: int = maxi(1, int(snap.get("max_hp", 100)))
-		var cur_hp_val: int = max_hp_val if restore_base_hp else clampi(int(snap.get("current_hp", max_hp_val)), 0, max_hp_val)
+		var raw_hp: int = int(snap.get("current_hp", max_hp_val))
+		var cur_hp_val: int = max_hp_val if restore_base_hp else clampi(maxi(1, raw_hp), 1, max_hp_val)
 		var has_mana: bool = bool(snap.get("has_mana", false))
 		var max_mana_val: int = maxi(1, int(snap.get("max_mana", 100)))
 		var cur_mana_val: int = clampi(int(snap.get("current_mana", max_mana_val)), 0, max_mana_val)

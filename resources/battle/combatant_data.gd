@@ -5,6 +5,7 @@ extends Resource
 ## Шаблон бойца отряда игрока (ГГ со шкалой «Поток» и рекруты с категорией оружия, одним баком и Дарами)
 @export var combatant_id: String = "hero"
 @export var display_name: String = "Герой"
+@export var role_title: String = ""
 @export var is_player_controlled: bool = true
 @export var is_hero: bool = false
 ## Викинги не могут владеть баком MANA (проверяется при инициализации)
@@ -12,13 +13,17 @@ extends Resource
 @export var sprite_color: Color = Color(0.85, 0.25, 0.25, 1.0)
 @export var stats: CombatStatsData = null
 
-@export_group("Оружейная специализация, Тяжелое и Дары")
+@export_group("Оружейная специализация, Тяжелое, Руна рода и Бог")
 ## Привязанная категория оружия рекрута (ГГ использует HERO_SIGNATURE и не ограничен одной категорией)
 @export var weapon_category: InventoryTypes.WeaponCategory = InventoryTypes.WeaponCategory.NONE
 ## Может ли боец экипировать предметы с меткой is_heavy (по умолчанию false у SHORT_BLADES, RANGED, RELICS)
 @export var can_wear_heavy: bool = true
 ## Врожденные/открытые Дары для использования Реликвий (VOICE, SEIDR, LOT, CHARM, BEAST)
 @export var gifts: Array[InventoryTypes.RelicGift] = []
+## Родовая руна рекрута (для Резонанса с активной вязью ГГ)
+@export var ancestral_rune_id: StringName = &""
+## Бог-покровитель рекрута (для Благословения отряда и условий вербовки)
+@export var patron_god: BattleTypes.GodId = BattleTypes.GodId.NONE
 
 @export_group("Ресурсный бак и Поток ГГ")
 ## Единственный основной бак рекрута (ENERGY, MANA, RAGE или HAMINGJA)
@@ -49,6 +54,8 @@ extends Resource
 
 @export_group("Навыки и прогрессия")
 @export var basic_attack: SkillData = null
+## Фиксированный личный кит умений рекрута / героя (не зависит от смены оружия)
+@export var personal_skills: Array[SkillData] = []
 @export var skills: Array[SkillData] = []
 @export var ultimate_skill: SkillData = null
 @export var equipment_loadout: EquipmentLoadout = null
