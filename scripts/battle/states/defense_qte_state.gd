@@ -208,8 +208,9 @@ func _resolve_enemy_attack(def_mult: float, qte_tier: String, ham_delta: int) ->
 		block_tag = " [БЛОК %d%%]" % block_pct
 	var no_guard_tag: String = " [ОТКРЫТАЯ СТОЙКА!]" if bool(calc.get("no_guard_triggered", false)) else ""
 	var barrier_tag: String = " [Барьер: -%d]" % absorbed_barrier if absorbed_barrier > 0 else ""
+	var eihwaz_tag: String = " [ᛇ ПЕЧАТЬ ЭЙВАЗ: ВЫЖИЛ С 1 HP!]" if bool(take_res.get("survived_by_eihwaz", false)) else ""
 	
-	logs.append("%s%s использует «%s» против %s: %d урона.%s%s%s" % [
+	logs.append("%s%s использует «%s» против %s: %d урона.%s%s%s%s" % [
 		qte_info,
 		attacker.display_name,
 		skill.skill_name,
@@ -217,7 +218,8 @@ func _resolve_enemy_attack(def_mult: float, qte_tier: String, ham_delta: int) ->
 		actual_dmg,
 		block_tag,
 		no_guard_tag,
-		barrier_tag
+		barrier_tag,
+		eihwaz_tag
 	])
 	
 	if _has_defense_qte and skill.qte_config != null and skill.qte_config.apply_status_on_fail and def_mult <= 0.5 and target.is_alive():

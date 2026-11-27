@@ -230,10 +230,17 @@ func _refresh_single_party_card(card: Dictionary, member: Combatant, is_active_t
 	if status_lbl != null:
 		status_lbl.text = full_st
 	if panel != null:
-		panel.tooltip_text = "%s (%s)\nСтатусы: %s" % [
+		var extra_lines: PackedStringArray = PackedStringArray()
+		if member.has_resonance_active:
+			extra_lines.append("Резонанс: %s" % member.resonance_label)
+		if not member.active_blessing_names.is_empty():
+			extra_lines.append("Благословение: %s" % ", ".join(member.active_blessing_names))
+		var extra_str: String = ("\n" + "\n".join(extra_lines)) if not extra_lines.is_empty() else ""
+		panel.tooltip_text = "%s (%s)\nСтатусы: %s%s" % [
 			member.display_name,
 			member.role_title if not member.role_title.is_empty() else "Боец",
-			full_st if not full_st.is_empty() else "нет"
+			full_st if not full_st.is_empty() else "нет",
+			extra_str
 		]
 
 ## Показывает или скрывает основное меню из 5 кнопок с учетом доступности Ульты и Перезарядки
@@ -274,9 +281,10 @@ func show_skill_list(actor: Combatant) -> void:
 		if skill == null:
 			continue
 		var btn: Button = Button.new()
+		var eff_cost: int = actor.get_effective_skill_cost(skill)
 		var cost_text: String = ""
-		if skill.resource_cost > 0:
-			cost_text = " (%d %s)" % [skill.resource_cost, res_label]
+		if eff_cost > 0:
+			cost_text = " (%d %s)" % [eff_cost, res_label]
 		elif skill.is_rage_to_heal():
 			cost_text = " (сжигает %s)" % res_label
 		elif skill.has_tag(BattleTypes.SkillTag.SCALES_WITH_RAGE):
@@ -289,7 +297,7 @@ func show_skill_list(actor: Combatant) -> void:
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		btn.add_theme_font_size_override("font_size", 10)
 		var reload_blocked: bool = actor.has_status(BattleTypes.StatusType.RELOAD_REQUIRED) and skill.has_tag(BattleTypes.SkillTag.RANGED_ATTACK)
-		btn.disabled = reload_blocked or not actor.resources.can_afford(skill.resource_type, skill.resource_cost)
+		btn.disabled = reload_blocked or not actor.resources.can_afford(skill.resource_type, eff_cost)
 		var captured_skill: SkillData = skill
 		btn.pressed.connect(func() -> void:
 			skill_selected.emit(captured_skill)

@@ -2,11 +2,12 @@
 class_name ConsumableItemData
 extends ItemData
 
-## Расходный предмет для применения в бою и/или в оверворлде
+## Расходный предмет для применения в бою и/или в оверворлде (включая ритуальный сброс рун)
 @export var heal_hp: int = 0
 @export var restore_resource_type: BattleTypes.ResourceType = BattleTypes.ResourceType.MANA
 @export var restore_resource_amount: int = 0
 @export var cure_statuses: Array[BattleTypes.StatusType] = []
+@export var is_rune_reset_item: bool = false
 @export var usable_in_battle: bool = true
 @export var usable_in_overworld: bool = true
 
@@ -20,6 +21,8 @@ func _init() -> void:
 ## Возвращает краткое текстовое описание эффекта расходника для UI
 func get_effect_summary() -> String:
 	var parts: PackedStringArray = PackedStringArray()
+	if is_rune_reset_item:
+		parts.append("Сброс Футарка (возврат 100% Знаков)")
 	if heal_hp > 0:
 		parts.append("+%d HP" % heal_hp)
 	if restore_resource_amount > 0:

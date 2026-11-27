@@ -11,6 +11,9 @@ extends Resource
 ## Викинги не могут владеть баком MANA (проверяется при инициализации)
 @export var is_viking: bool = true
 @export var sprite_color: Color = Color(0.85, 0.25, 0.25, 1.0)
+## Опциональные пиксельные текстуры портрета и ростовой куклы бойца (если null — подхватываются из assets/ui/inventory/ или InventoryVisualFactory)
+@export var portrait_texture: Texture2D = null
+@export var fullbody_texture: Texture2D = null
 @export var stats: CombatStatsData = null
 
 @export_group("Оружейная специализация, Тяжелое, Руна рода и Бог")

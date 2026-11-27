@@ -115,7 +115,6 @@ func _on_qte_judged(_accuracy: float, tier_label: String) -> void:
 
 func _draw() -> void:
 	var w: float = maxf(240.0, size.x)
-	var h: float = maxf(76.0, size.y)
 	var bar_w: float = w - 36.0
 	var bar_h: float = 20.0
 	var bar_x: float = 18.0

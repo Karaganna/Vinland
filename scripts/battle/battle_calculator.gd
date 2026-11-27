@@ -133,6 +133,8 @@ static func calculate_block_mitigation(
 	if target.is_blocking:
 		was_blocked = true
 		effective_block_ratio = base_block_ratio
+		if target.has_rune_seal(&"seal_isa"):
+			effective_block_ratio = clampf(effective_block_ratio + 0.15, 0.0, 0.95)
 		if target_has_shield:
 			var shield_ch: Dictionary = target.get_shield_block_chances()
 			var full_ch: float = float(shield_ch.get("full_chance", 0.0))
@@ -194,7 +196,9 @@ static func calculate_damage(
 	defense_qte_multiplier: float = 1.0,
 	tension_tier: BattleTypes.TensionTier = BattleTypes.TensionTier.LOCKED,
 	has_defense_qte: bool = false,
-	force_crit: bool = false
+	force_crit: bool = false,
+	turn_number: int = 1,
+	alive_ally_count: int = 1
 ) -> Dictionary:
 	if attacker == null or target == null or skill == null:
 		return {
@@ -244,6 +248,26 @@ static func calculate_damage(
 	# Бонус от активного QTE атаки
 	raw_power *= maxf(0.0, qte_multiplier)
 	
+	# Боевые Печати Старшего футарка атакующего (Уруз, Соулу, Хагалаз, Наутиз, Манназ, Дагаз, Тейваз)
+	if attacker.has_rune_seal(&"seal_uruz") and skill.damage_type == BattleTypes.DamageType.PHYSICAL:
+		raw_power *= 1.10
+	if attacker.has_rune_seal(&"seal_sowilo") and (skill.action_category == BattleTypes.ActionType.SKILL or skill.is_ultimate):
+		raw_power *= 1.10
+	if attacker.has_rune_seal(&"seal_hagalaz") and (
+		target.is_staggered()
+		or target.has_status(BattleTypes.StatusType.FREEZE)
+		or target.has_status(BattleTypes.StatusType.UNBALANCED)
+	):
+		raw_power *= 1.15
+	if attacker.has_rune_seal(&"seal_naudhiz") and float(attacker.current_hp) < float(maxi(1, attacker.max_hp)) * 0.50:
+		raw_power *= 1.15
+	if attacker.has_rune_seal(&"seal_mannaz") and alive_ally_count > 1:
+		raw_power *= (1.0 + 0.04 * float(alive_ally_count - 1))
+	if attacker.has_rune_seal(&"seal_dagaz") and turn_number <= 1:
+		raw_power *= 1.25
+	if attacker.has_rune_seal(&"seal_tiwaz") and target.is_blocking:
+		raw_power *= 1.20
+	
 	# Бонус уровня ультимативной шкалы Напряжения (50% / 100%) и слотов рун
 	if skill.is_ultimate:
 		var tension_mult: float = 1.5 if tension_tier == BattleTypes.TensionTier.FULL_100 else 1.0
@@ -261,6 +285,8 @@ static func calculate_damage(
 	var total_defense: int = target.get_effective_defense()
 	if ignores_shield_def:
 		total_defense = maxi(0, total_defense - target.get_shield_defense_bonus())
+	if attacker.has_rune_seal(&"seal_thurisaz"):
+		total_defense = roundi(float(total_defense) * 0.85)
 	var part_mult: float = 1.0
 	if target_part != null and target_part.data != null:
 		total_defense += target_part.data.armor
@@ -310,8 +336,10 @@ static func calculate_damage(
 		is_crit = true
 		mitigated *= eff_crit_mult
 	
-	# Штраф входящего урона при истощении Энергии цели (только если включен флаг)
+	# Штраф входящего урона при истощении Энергии цели и Печать Наутиз (-20% при HP < 50%)
 	mitigated *= target.resources.get_energy_incoming_multiplier()
+	if target.has_rune_seal(&"seal_naudhiz") and float(target.current_hp) < float(maxi(1, target.max_hp)) * 0.50:
+		mitigated *= 0.80
 	
 	# Градиентный блок и симметричный GUARD_BREAK
 	var block_info: Dictionary = calculate_block_mitigation(skill, target, defense_qte_multiplier, has_defense_qte, attacker)

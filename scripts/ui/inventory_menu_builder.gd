@@ -2,7 +2,7 @@
 class_name InventoryMenuBuilder
 extends RefCounted
 
-## Процедурный сборщик UI инвентаря, 5 слотов экипировки и ротации отряда/корабля для базового Viewport 640x360
+## Процедурный сборщик UI инвентаря, экипировки, отряда/корабля, Старшего футарка и Богов под Viewport 640x360
 static func build_overlay_ui(root: CanvasLayer) -> Dictionary:
 	if root == null:
 		return {}
@@ -10,9 +10,9 @@ static func build_overlay_ui(root: CanvasLayer) -> Dictionary:
 	# Компактная кнопка открытия в правом верхнем углу оверворлда
 	var hud_btn: Button = Button.new()
 	hud_btn.name = "HudToggleButton"
-	hud_btn.text = "Отряд / Инв. [I]"
-	hud_btn.position = Vector2(514.0, 8.0)
-	hud_btn.size = Vector2(118.0, 22.0)
+	hud_btn.text = "Отряд / Руны [I]"
+	hud_btn.position = Vector2(510.0, 8.0)
+	hud_btn.size = Vector2(122.0, 22.0)
 	hud_btn.focus_mode = Control.FOCUS_NONE
 	hud_btn.add_theme_font_size_override("font_size", 10)
 	root.add_child(hud_btn)
@@ -61,7 +61,7 @@ static func build_overlay_ui(root: CanvasLayer) -> Dictionary:
 	
 	var title_lbl: Label = Label.new()
 	title_lbl.name = "TitleLabel"
-	title_lbl.text = "ОТРЯД И СНАРЯЖЕНИЕ"
+	title_lbl.text = "ОТРЯД, СНАРЯЖЕНИЕ, РУНЫ И БОГИ"
 	title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_lbl.add_theme_font_size_override("font_size", 10)
 	title_lbl.modulate = Color(1.0, 0.88, 0.52, 1.0)
@@ -90,10 +90,10 @@ static func build_overlay_ui(root: CanvasLayer) -> Dictionary:
 	body_hbox.add_theme_constant_override("separation", 8)
 	main_vbox.add_child(body_hbox)
 	
-	# Левая колонка: профиль бойца + 5 слотов + статы + синергии и навыки оружия
+	# Левая колонка: профиль бойца + 5 слотов + статы + синергии/резонанс/навыки
 	var left_col: VBoxContainer = VBoxContainer.new()
 	left_col.name = "LeftEquipmentColumn"
-	left_col.custom_minimum_size = Vector2(264.0, 0.0)
+	left_col.custom_minimum_size = Vector2(256.0, 0.0)
 	left_col.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left_col.add_theme_constant_override("separation", 3)
 	body_hbox.add_child(left_col)
@@ -145,7 +145,7 @@ static func build_overlay_ui(root: CanvasLayer) -> Dictionary:
 	var vsep: VSeparator = VSeparator.new()
 	body_hbox.add_child(vsep)
 	
-	# Правая колонка: вкладки + скролл списка предметов / ротации корабля
+	# Правая колонка: 5 компактных вкладок (Экип, Вещи, Отряд, Руны, Боги) + прокручиваемый список
 	var right_col: VBoxContainer = VBoxContainer.new()
 	right_col.name = "RightInventoryColumn"
 	right_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -155,32 +155,23 @@ static func build_overlay_ui(root: CanvasLayer) -> Dictionary:
 	
 	var tabs_hbox: HBoxContainer = HBoxContainer.new()
 	tabs_hbox.name = "TabsHBox"
-	tabs_hbox.add_theme_constant_override("separation", 4)
+	tabs_hbox.add_theme_constant_override("separation", 3)
 	right_col.add_child(tabs_hbox)
 	
-	var tab_eq_btn: Button = Button.new()
-	tab_eq_btn.name = "TabEquipmentButton"
-	tab_eq_btn.text = "Экипировка"
-	tab_eq_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tab_eq_btn.custom_minimum_size = Vector2(0.0, 21.0)
-	tab_eq_btn.add_theme_font_size_override("font_size", 9)
+	var tab_eq_btn: Button = _make_compact_tab_button("TabEquipmentButton", "Экип")
 	tabs_hbox.add_child(tab_eq_btn)
 	
-	var tab_cons_btn: Button = Button.new()
-	tab_cons_btn.name = "TabConsumablesButton"
-	tab_cons_btn.text = "Расходники"
-	tab_cons_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tab_cons_btn.custom_minimum_size = Vector2(0.0, 21.0)
-	tab_cons_btn.add_theme_font_size_override("font_size", 9)
+	var tab_cons_btn: Button = _make_compact_tab_button("TabConsumablesButton", "Вещи")
 	tabs_hbox.add_child(tab_cons_btn)
 	
-	var tab_ship_btn: Button = Button.new()
-	tab_ship_btn.name = "TabShipButton"
-	tab_ship_btn.text = "Отряд / Корабль"
-	tab_ship_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tab_ship_btn.custom_minimum_size = Vector2(0.0, 21.0)
-	tab_ship_btn.add_theme_font_size_override("font_size", 9)
+	var tab_ship_btn: Button = _make_compact_tab_button("TabShipButton", "Отряд")
 	tabs_hbox.add_child(tab_ship_btn)
+	
+	var tab_runes_btn: Button = _make_compact_tab_button("TabRunesButton", "Руны")
+	tabs_hbox.add_child(tab_runes_btn)
+	
+	var tab_gods_btn: Button = _make_compact_tab_button("TabGodsButton", "Боги")
+	tabs_hbox.add_child(tab_gods_btn)
 	
 	var item_scroll: ScrollContainer = ScrollContainer.new()
 	item_scroll.name = "ItemListScroll"
@@ -218,6 +209,17 @@ static func build_overlay_ui(root: CanvasLayer) -> Dictionary:
 		"tab_equipment_button": tab_eq_btn,
 		"tab_consumables_button": tab_cons_btn,
 		"tab_ship_button": tab_ship_btn,
+		"tab_runes_button": tab_runes_btn,
+		"tab_gods_button": tab_gods_btn,
 		"item_list_container": item_list,
 		"feedback_label": feedback_lbl
 	}
+
+static func _make_compact_tab_button(p_name: String, p_text: String) -> Button:
+	var btn: Button = Button.new()
+	btn.name = p_name
+	btn.text = p_text
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.custom_minimum_size = Vector2(0.0, 20.0)
+	btn.add_theme_font_size_override("font_size", 9)
+	return btn

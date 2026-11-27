@@ -523,7 +523,7 @@ static func create_ship_recruit_berserker() -> CombatantData:
 	rec.equipment_loadout = loadout
 	return rec
 
-## 6. Щитоносец Хальвдан (на корабле): POLEARM, тяжелый щит + «Начеку», ENERGY, THOR, руна URUZ
+## 6. Щитоносец Хальвдан (на корабле): LONG_BLADES (обычный меч + тяжелый щит -> «Начеку»), ENERGY, THOR, руна URUZ
 static func create_ship_recruit_shieldbearer() -> CombatantData:
 	var rec: CombatantData = CombatantData.new()
 	rec.combatant_id = "recruit_shieldbearer"
@@ -532,7 +532,7 @@ static func create_ship_recruit_shieldbearer() -> CombatantData:
 	rec.is_player_controlled = true
 	rec.is_hero = false
 	rec.is_viking = true
-	rec.weapon_category = InventoryTypes.WeaponCategory.POLEARM
+	rec.weapon_category = InventoryTypes.WeaponCategory.LONG_BLADES
 	rec.can_wear_heavy = true
 	rec.primary_resource = BattleTypes.ResourceType.ENERGY
 	rec.ancestral_rune_id = &"uruz"
@@ -553,8 +553,8 @@ static func create_ship_recruit_shieldbearer() -> CombatantData:
 	
 	rec.basic_attack = _make_basic_attack(
 		"shieldbearer_basic",
-		"Толчок древком",
-		"Контактный удар древком (+24 Энергии).",
+		"Рубящий шаг",
+		"Контактный удар мечом из-за щита (+24 Энергии).",
 		BattleTypes.DamageType.PHYSICAL,
 		7,
 		24,
@@ -602,7 +602,7 @@ static func create_ship_recruit_shieldbearer() -> CombatantData:
 	
 	var loadout: EquipmentLoadout = EquipmentLoadout.new()
 	loadout.available_hands = 2
-	loadout.equip_into_slot(InventoryTypes.SLOT_LEFT_HAND, WeaponCatalogFactory.create_recruit_ash_spear())
+	loadout.equip_into_slot(InventoryTypes.SLOT_LEFT_HAND, WeaponCatalogFactory.create_nordic_sword())
 	loadout.equip_into_slot(InventoryTypes.SLOT_RIGHT_HAND, WeaponCatalogFactory.create_hird_heavy_shield())
 	loadout.equip_into_slot(InventoryTypes.SLOT_BODY, WeaponCatalogFactory.create_varangian_heavy_armor())
 	rec.equipment_loadout = loadout
@@ -768,17 +768,24 @@ static func create_young_dragon() -> EnemyData:
 	dragon.dialogue_defeat = "Молодой дракон повержен!"
 	return dragon
 
-## Создает runtime-отряд из 4 бойцов для автономного запуска battle_sandbox.tscn по F6
+## Создает runtime-отряд из 4 бойцов для автономного запуска battle_sandbox.tscn по F6 (с дефолтными рунами и богами)
 static func create_sandbox_player_party(synergy_catalog: Array[WeaponSynergyData] = []) -> Array[Combatant]:
 	var resolved_synergies: Array[WeaponSynergyData] = synergy_catalog
 	if resolved_synergies.is_empty():
 		resolved_synergies = InventorySandboxFactory.create_synergy_catalog()
 	var party: Array[Combatant] = []
 	var data_list: Array[CombatantData] = create_sandbox_active_party_data()
+	var ship_list: Array[CombatantData] = create_sandbox_ship_roster_data()
+	var def_runes: RuneSystemState = RuneSystemState.new()
+	def_runes.initialize_defaults()
+	var def_gods: GodAffinityState = GodAffinityState.new()
+	def_gods.initialize_defaults()
 	for i: int in range(data_list.size()):
 		var d: CombatantData = data_list[i]
 		if d != null:
-			party.append(Combatant.from_combatant_data(d, d.combatant_id, resolved_synergies))
+			var c: Combatant = Combatant.from_combatant_data(d, d.combatant_id, resolved_synergies)
+			c.apply_progression_modifiers(def_runes, def_gods, data_list, ship_list.size())
+			party.append(c)
 	return party
 
 static func create_sandbox_enemy_party() -> Array[Combatant]:

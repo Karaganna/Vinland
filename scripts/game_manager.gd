@@ -32,9 +32,11 @@ var party_roster: Array[CombatantData] = []
 var ship_roster: Array[CombatantData] = []
 var party_runtime_snapshots: Dictionary = {}
 
-## Глобальный инвентарь отряда и каталог парных оружейных синергий
+## Глобальный инвентарь отряда, каталог синергий, Старший футарк ГГ и Система Богов
 var inventory: InventoryState = null
 var synergy_catalog: Array[WeaponSynergyData] = []
+var rune_state: RuneSystemState = null
+var god_state: GodAffinityState = null
 
 ## Глобальный флаг автопрохождения QTE для рядовых боев (по умолчанию выключен)
 @export var auto_qte_enabled: bool = false
@@ -55,12 +57,25 @@ var _post_battle_grace_until_msec: int = 0
 @export var village_scene_path: String = "res://scenes/village_location.tscn"
 @export var battle_scene_path: String = DEFAULT_BATTLE_SCENE_PATH
 
-## Инициализирует общий инвентарь и каталог оружейных синергий, если еще не созданы
+## Инициализирует общий инвентарь, каталог синергий, Старший футарк и Систему Богов, если еще не созданы
 func ensure_inventory_initialized() -> void:
 	if synergy_catalog.is_empty():
 		synergy_catalog = InventorySandboxFactory.create_synergy_catalog()
 	if inventory == null:
 		inventory = InventorySandboxFactory.create_starter_inventory()
+	if rune_state == null:
+		rune_state = RuneSystemState.new()
+		rune_state.initialize_defaults()
+	if god_state == null:
+		god_state = GodAffinityState.new()
+		god_state.initialize_defaults()
+
+## Проводит полный сброс рун за 1 ед. «Золы обряда» из инвентаря (возвращает все вложенные Знаки)
+func reset_runes_with_ritual_ash() -> Dictionary:
+	ensure_party_initialized()
+	if rune_state == null:
+		return {"ok": false, "reason": "Система рун не инициализирована."}
+	return rune_state.reset_all_runes_with_consumable(inventory, InventorySandboxFactory.RITUAL_ASH_ITEM_ID)
 
 ## Инициализирует отряд игрока (4 активных бойца + 2 рекрута в резерве на корабле), если отряд еще пуст
 func ensure_party_initialized() -> void:
@@ -146,6 +161,7 @@ func build_player_party_for_battle() -> Array[Combatant]:
 		var member_id: String = _resolve_member_id(member_data, i)
 		
 		var combatant: Combatant = Combatant.from_combatant_data(member_data, member_id, synergy_catalog)
+		combatant.apply_progression_modifiers(rune_state, god_state, active_party, ship_roster.size())
 		if party_runtime_snapshots.has(member_id):
 			var snap: Dictionary = party_runtime_snapshots[member_id] as Dictionary
 			if snap.has("current_hp"):
@@ -182,6 +198,7 @@ func rest_at_camp() -> void:
 			continue
 		var member_id: String = _resolve_member_id(member_data, i)
 		var preview: Combatant = Combatant.from_combatant_data(member_data, member_id, synergy_catalog)
+		preview.apply_progression_modifiers(rune_state, god_state, active_party, ship_roster.size())
 		var true_max_hp: int = maxi(1, preview.max_hp)
 		var has_mana: bool = preview.resources.has_resource(BattleTypes.ResourceType.MANA)
 		var true_max_mana: int = preview.resources.get_max(BattleTypes.ResourceType.MANA)
@@ -205,6 +222,7 @@ func get_party_member_status(member_data: CombatantData) -> Dictionary:
 		idx = (10 + ship_idx) if ship_idx >= 0 else 0
 	var member_id: String = _resolve_member_id(member_data, idx)
 	var preview: Combatant = Combatant.from_combatant_data(member_data, member_id, synergy_catalog)
+	preview.apply_progression_modifiers(rune_state, god_state, active_party, ship_roster.size())
 	var cur_hp: int = preview.max_hp
 	var cur_mana: int = preview.resources.get_current(BattleTypes.ResourceType.MANA)
 	var has_mana: bool = preview.resources.has_resource(BattleTypes.ResourceType.MANA)
@@ -245,10 +263,15 @@ func get_party_member_status(member_data: CombatantData) -> Dictionary:
 		"crit_multiplier": preview.get_effective_crit_multiplier(),
 		"active_synergies": preview.active_synergies,
 		"granted_weapon_skills": preview.equipment_loadout.get_granted_skills(synergy_catalog) if preview.equipment_loadout != null else [],
+		"all_active_skills": preview.skills,
+		"ultimate_skill_name": preview.ultimate_skill.skill_name if preview.ultimate_skill != null else "",
+		"has_resonance": preview.has_resonance_active,
+		"resonance_label": preview.resonance_label,
+		"active_blessings": preview.active_blessing_names,
 		"qte_override": preview.get_effective_qte_override()
 	}
 
-## Применяет расходник к бойцу вне боя (в оверворлде) и обновляет снимок HP/Маны
+## Применяет расходник к бойцу вне боя (включая ритуальный сброс рун через «Золу обряда»)
 func use_overworld_consumable(member_data: CombatantData, item: ConsumableItemData) -> Dictionary:
 	ensure_party_initialized()
 	if member_data == null or item == null:
@@ -257,6 +280,9 @@ func use_overworld_consumable(member_data: CombatantData, item: ConsumableItemDa
 		return {"ok": false, "message": "«%s» можно применять только в бою." % item.display_name}
 	if inventory == null or inventory.get_item_count(item.item_id) <= 0:
 		return {"ok": false, "message": "Предмет закончился."}
+	if item.is_rune_reset_item and rune_state != null:
+		var reset_res: Dictionary = rune_state.reset_all_runes_with_consumable(inventory, item.item_id)
+		return {"ok": bool(reset_res.get("ok", false)), "message": str(reset_res.get("reason", ""))}
 	
 	var status: Dictionary = get_party_member_status(member_data)
 	var member_id: String = str(status.get("combatant_id", ""))

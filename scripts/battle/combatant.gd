@@ -44,6 +44,17 @@ var equipment_modifiers: Array[EquipmentModifierStub] = []
 var item_slots: Array[ItemSlotStub] = []
 var rune_slots: Array[RuneSlotStub] = []
 
+## Прогрессия Футарка, Резонанса, Покровителя и Благословений отряда
+var progression_stat_bonuses: Dictionary = {}
+var active_seal_ids: Array[StringName] = []
+var has_resonance_active: bool = false
+var resonance_label: String = ""
+var active_blessing_names: Array[String] = []
+var active_great_bind_name: String = ""
+var start_battle_barrier: int = 0
+var eihwaz_death_ward_ready: bool = false
+var skill_cost_multiplier: float = 1.0
+
 var parts: Array[EnemyPartState] = []
 var statuses: Array[StatusEffectInstance] = []
 
@@ -143,6 +154,140 @@ static func from_combatant_data(
 	
 	c.resources.configure_resource(BattleTypes.ResourceType.TENSION, data.max_tension, data.initial_tension, true)
 	return c
+
+## Применяет к бойцу модификаторы Старшего футарка (Вязь, Бандруны, Великая вязь, Отала, Резонанс) и Системы Богов
+func apply_progression_modifiers(
+	rune_state: RuneSystemState,
+	god_state: GodAffinityState,
+	party_data: Array[CombatantData],
+	ship_count: int
+) -> void:
+	progression_stat_bonuses = {
+		"max_hp": 0,
+		"attack": 0,
+		"magic_power": 0,
+		"defense": 0,
+		"speed": 0,
+		"crit_chance": 0.0,
+		"crit_multiplier": 0.0,
+		"qte_perfect_delta": 0.0
+	}
+	active_seal_ids.clear()
+	has_resonance_active = false
+	resonance_label = ""
+	active_blessing_names.clear()
+	active_great_bind_name = ""
+	start_battle_barrier = 0
+	eihwaz_death_ward_ready = false
+	skill_cost_multiplier = 1.0
+	
+	var hp_ratio_before: float = float(current_hp) / float(maxi(1, max_hp))
+	var party_speed_aura: int = 0
+	if rune_state != null:
+		var hero_preview: Dictionary = rune_state.compute_hero_rune_modifiers(ship_count)
+		party_speed_aura = int(hero_preview.get("party_speed_aura", 0))
+		if is_hero:
+			_add_prog_bonus(hero_preview)
+			progression_stat_bonuses["qte_perfect_delta"] = float(hero_preview.get("qte_perfect_delta", 0.0))
+			start_battle_barrier += int(hero_preview.get("start_barrier", 0))
+			var seals_var: Variant = hero_preview.get("seal_ids", [])
+			if seals_var is Array:
+				for s_entry: Variant in seals_var:
+					var s_id: StringName = s_entry as StringName
+					if s_id != &"":
+						active_seal_ids.append(s_id)
+			if has_rune_seal(&"seal_ansuz"):
+				skill_cost_multiplier = 0.85
+			if has_rune_seal(&"seal_eihwaz"):
+				eihwaz_death_ward_ready = true
+			
+			# Увеличение максимума/старта Потока (Лагуз, Райдо) и стартового Напряжения (Феху, Ингваз)
+			var max_flow_add: int = int(hero_preview.get("max_flow_bonus", 0))
+			var start_flow_add: int = int(hero_preview.get("start_flow_bonus", 0))
+			if max_flow_add > 0 or start_flow_add > 0:
+				var f_type: BattleTypes.ResourceType = resources.get_working_resource_type()
+				var new_max_f: int = resources.get_max(f_type) + max_flow_add
+				var new_cur_f: int = mini(new_max_f, resources.get_current(f_type) + start_flow_add)
+				resources.configure_hero_flow(f_type, new_max_f, new_cur_f)
+			var start_t_add: int = int(hero_preview.get("start_tension_bonus", 0))
+			if start_t_add > 0:
+				resources.restore_resource(BattleTypes.ResourceType.TENSION, start_t_add)
+			
+			# Активные умения Бандрун
+			var br_var: Variant = hero_preview.get("bindrune_skills", [])
+			if br_var is Array:
+				for br_sk_v: Variant in br_var:
+					if br_sk_v is SkillData:
+						_append_skill_if_missing(br_sk_v as SkillData)
+			
+			# Активная Великая вязь заменяет Ульту ГГ (максимум 1 Великая вязь активна одновременно)
+			var gb_ult: SkillData = hero_preview.get("great_bind_ultimate", null) as SkillData
+			if gb_ult != null:
+				ultimate_skill = gb_ult
+				active_great_bind_name = str(hero_preview.get("great_bind_name", ""))
+				resources.ultimate_unlocked = true
+				resources.ultimate_max_tier = BattleTypes.TensionTier.FULL_100
+		else:
+			# Резонанс родовой руны рекрута с активной Вязью ГГ
+			var res_info: Dictionary = rune_state.compute_recruit_resonance(ancestral_rune_id)
+			if bool(res_info.get("active", false)):
+				has_resonance_active = true
+				resonance_label = str(res_info.get("rune_name", String(ancestral_rune_id)))
+				_add_prog_bonus(res_info)
+	
+	if party_speed_aura != 0:
+		progression_stat_bonuses["speed"] = int(progression_stat_bonuses["speed"]) + party_speed_aura
+	
+	if god_state != null:
+		if is_hero:
+			patron_god = god_state.active_patron
+			var pat_mods: Dictionary = god_state.compute_hero_patron_modifiers()
+			if bool(pat_mods.get("has_patron", false)):
+				_add_prog_bonus(pat_mods)
+				var g_skills_var: Variant = pat_mods.get("granted_skills", [])
+				if g_skills_var is Array:
+					for g_sk_v: Variant in g_skills_var:
+						if g_sk_v is SkillData:
+							_append_skill_if_missing(g_sk_v as SkillData)
+		
+		var bless_mods: Dictionary = god_state.compute_party_blessing_modifiers(party_data)
+		if bool(bless_mods.get("active", false)):
+			_add_prog_bonus(bless_mods)
+			start_battle_barrier += int(bless_mods.get("start_barrier", 0))
+			var b_names_var: Variant = bless_mods.get("blessing_names", [])
+			if b_names_var is Array:
+				for bn_v: Variant in b_names_var:
+					active_blessing_names.append(str(bn_v))
+	
+	max_hp = maxi(1, stats.max_hp + _get_equipment_hp_bonus() + int(progression_stat_bonuses.get("max_hp", 0)))
+	current_hp = clampi(roundi(float(max_hp) * clampf(hp_ratio_before, 0.01, 1.0)), 1, max_hp)
+
+func _add_prog_bonus(src: Dictionary) -> void:
+	progression_stat_bonuses["max_hp"] = int(progression_stat_bonuses.get("max_hp", 0)) + int(src.get("max_hp", 0))
+	progression_stat_bonuses["attack"] = int(progression_stat_bonuses.get("attack", 0)) + int(src.get("attack", 0))
+	progression_stat_bonuses["magic_power"] = int(progression_stat_bonuses.get("magic_power", 0)) + int(src.get("magic_power", 0))
+	progression_stat_bonuses["defense"] = int(progression_stat_bonuses.get("defense", 0)) + int(src.get("defense", 0))
+	progression_stat_bonuses["speed"] = int(progression_stat_bonuses.get("speed", 0)) + int(src.get("speed", 0))
+	progression_stat_bonuses["crit_chance"] = float(progression_stat_bonuses.get("crit_chance", 0.0)) + float(src.get("crit_chance", 0.0))
+	progression_stat_bonuses["crit_multiplier"] = float(progression_stat_bonuses.get("crit_multiplier", 0.0)) + float(src.get("crit_multiplier", 0.0))
+
+func _append_skill_if_missing(sk: SkillData) -> void:
+	if sk == null:
+		return
+	for existing: SkillData in skills:
+		if existing != null and not sk.skill_id.is_empty() and existing.skill_id == sk.skill_id:
+			return
+	skills.append(sk)
+
+func has_rune_seal(seal_id: StringName) -> bool:
+	return active_seal_ids.has(seal_id)
+
+func get_effective_skill_cost(skill: SkillData) -> int:
+	if skill == null or skill.resource_cost <= 0:
+		return 0
+	if is_equal_approx(skill_cost_multiplier, 1.0):
+		return skill.resource_cost
+	return maxi(1, roundi(float(skill.resource_cost) * skill_cost_multiplier))
 
 static func _get_resource_bounds_from_data(data: CombatantData, res_type: BattleTypes.ResourceType) -> Vector2i:
 	match res_type:
@@ -259,7 +404,7 @@ func get_shield_block_chances() -> Dictionary:
 	return {"has_shield": false, "enhanced_chance": 0.0, "full_chance": 0.0}
 
 func get_base_attack_without_rage() -> int:
-	var base_val: int = stats.attack
+	var base_val: int = stats.attack + int(progression_stat_bonuses.get("attack", 0))
 	if equipment_loadout != null:
 		var bonuses: Dictionary = equipment_loadout.get_total_stat_bonuses()
 		base_val += int(bonuses.get("attack", 0))
@@ -276,14 +421,14 @@ func get_effective_attack() -> int:
 	return maxi(1, roundi(float(get_base_attack_without_rage()) * resources.get_rage_attack_multiplier()))
 
 func get_effective_magic() -> int:
-	var base_val: int = stats.magic_power
+	var base_val: int = stats.magic_power + int(progression_stat_bonuses.get("magic_power", 0))
 	if equipment_loadout != null:
 		var bonuses: Dictionary = equipment_loadout.get_total_stat_bonuses()
 		base_val += int(bonuses.get("magic_power", 0))
 	return maxi(1, base_val)
 
 func get_effective_defense() -> int:
-	var base_val: int = stats.defense
+	var base_val: int = stats.defense + int(progression_stat_bonuses.get("defense", 0))
 	if equipment_loadout != null:
 		var bonuses: Dictionary = equipment_loadout.get_total_stat_bonuses()
 		base_val += int(bonuses.get("defense", 0))
@@ -297,7 +442,7 @@ func get_effective_defense() -> int:
 	return maxi(0, base_val)
 
 func get_effective_speed() -> int:
-	var base_val: int = stats.speed
+	var base_val: int = stats.speed + int(progression_stat_bonuses.get("speed", 0))
 	if equipment_loadout != null:
 		var bonuses: Dictionary = equipment_loadout.get_total_stat_bonuses()
 		base_val += int(bonuses.get("speed", 0))
@@ -313,7 +458,7 @@ func acts_last() -> bool:
 	return has_status(BattleTypes.StatusType.ACT_LAST)
 
 func get_effective_crit_chance() -> float:
-	var chance: float = stats.crit_chance
+	var chance: float = stats.crit_chance + float(progression_stat_bonuses.get("crit_chance", 0.0))
 	if equipment_loadout != null:
 		var bonuses: Dictionary = equipment_loadout.get_total_stat_bonuses()
 		chance += float(bonuses.get("crit_chance", 0.0))
@@ -321,16 +466,21 @@ func get_effective_crit_chance() -> float:
 	return clampf(chance, 0.0, 1.0)
 
 func get_effective_crit_multiplier() -> float:
-	var mult: float = stats.crit_multiplier
+	var mult: float = stats.crit_multiplier + float(progression_stat_bonuses.get("crit_multiplier", 0.0))
 	if equipment_loadout != null:
 		var bonuses: Dictionary = equipment_loadout.get_total_stat_bonuses()
 		mult += float(bonuses.get("crit_multiplier", 0.0))
 	return maxf(1.0, mult)
 
 func get_effective_qte_override() -> Dictionary:
-	if equipment_loadout != null:
-		return equipment_loadout.get_effective_qte_overrides()
-	return {"has_override": false}
+	var base_ov: Dictionary = equipment_loadout.get_effective_qte_overrides() if equipment_loadout != null else {"has_override": false}
+	var rune_perf_delta: float = float(progression_stat_bonuses.get("qte_perfect_delta", 0.0))
+	if not is_zero_approx(rune_perf_delta):
+		var merged: Dictionary = base_ov.duplicate()
+		merged["has_override"] = true
+		merged["perfect_delta"] = float(merged.get("perfect_delta", 0.0)) + rune_perf_delta
+		return merged
+	return base_ov
 
 func has_passive_tag(tag: StringName) -> bool:
 	if equipment_loadout == null or tag.is_empty():
@@ -354,6 +504,8 @@ func enter_block_stance(energy_gain: int = -1) -> int:
 	var restore_amt: int = energy_gain if energy_gain >= 0 else block_energy_restore
 	var gained: int = resources.restore_resource(BattleTypes.ResourceType.ENERGY, restore_amt)
 	resources.decay_rage_on_idle_or_block()
+	if has_rune_seal(&"seal_isa"):
+		apply_status(BattleTypes.StatusType.SHIELD_BARRIER, 2, runtime_id, 1.0, false, 1, false, 14)
 	return gained
 
 func clear_block_stance() -> void:
@@ -412,6 +564,8 @@ func apply_status(
 	barrier_hp: int = 0,
 	protected_ally_id: String = ""
 ) -> void:
+	if status_type == BattleTypes.StatusType.SLOW and has_rune_seal(&"seal_raidho"):
+		return
 	if BattleTypes.is_stance_status(status_type):
 		clear_weapon_stances()
 	
@@ -615,6 +769,11 @@ func take_damage(raw_amount: int, target_part: EnemyPartState = null, grant_rage
 	
 	var prev_hp: int = current_hp
 	current_hp = maxi(0, current_hp - actual_hp_damage)
+	var survived_by_eihwaz: bool = false
+	if prev_hp > 0 and current_hp == 0 and eihwaz_death_ward_ready:
+		eihwaz_death_ward_ready = false
+		current_hp = 1
+		survived_by_eihwaz = true
 	var applied_damage: int = prev_hp - current_hp
 	
 	if applied_damage > 0:
@@ -632,15 +791,17 @@ func take_damage(raw_amount: int, target_part: EnemyPartState = null, grant_rage
 		"absorbed_by_barrier": absorbed_by_barrier,
 		"part_broken": part_broke_now,
 		"broken_part_id": broken_part_id,
-		"triggered_stagger": triggered_stagger
+		"triggered_stagger": triggered_stagger,
+		"survived_by_eihwaz": survived_by_eihwaz
 	}
 
 ## Восстанавливает здоровье (внешнее лечение снижает Ярость; самолечение сжигает часть Ярости)
 func heal_hp(amount: int, is_external: bool = true, burn_rage_if_self: bool = true) -> int:
 	if amount <= 0 or not is_alive():
 		return 0
+	var boosted_amount: int = roundi(float(amount) * 1.25) if has_rune_seal(&"seal_berkana") else amount
 	var prev_hp: int = current_hp
-	current_hp = mini(max_hp, current_hp + amount)
+	current_hp = mini(max_hp, current_hp + boosted_amount)
 	var healed: int = current_hp - prev_hp
 	if healed > 0:
 		hp_changed.emit(current_hp, max_hp)

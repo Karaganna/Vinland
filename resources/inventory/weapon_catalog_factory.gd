@@ -163,31 +163,43 @@ static func create_dragonblood_greatsword() -> EquipmentItemData:
 # 2. ОРУЖИЕ РЕКРУТОВ ПО 7 КАТЕГОРИЯМ, КОМПЛЕКТЫ И ЛЕГЕНДАРКИ
 # =========================================================================
 
-## POLEARM (Древковое): Ясеневое копье (1H) и Атгейр (2H, Тяжелое)
+## POLEARM (Древковое — строго двуручное 2H у рекрутов без щитов): Ясеневое копье (2H) и Атгейр (2H, Тяжелое)
 static func create_recruit_ash_spear() -> EquipmentItemData:
 	var thrust: SkillData = _make_melee_skill(
 		"spear_base_thrust",
 		"Выпад копьём",
-		"Точный укол копьём с шансом выбить цель из равновесия.",
+		"Точный укол двуручным копьём с шансом выбить цель из равновесия.",
 		18,
 		16,
-		1.10,
+		1.12,
 		true
 	)
 	thrust.applies_status = true
 	thrust.status_to_apply = BattleTypes.StatusType.UNBALANCED
 	thrust.status_duration_turns = 2
 	
+	var brace_stance: SkillData = SkillData.new()
+	brace_stance.skill_id = "spear_twohand_intercept"
+	brace_stance.skill_name = "Упор древка"
+	brace_stance.description = "Второй базовый навык двуручного копья: стойка перехвата ближней атаки контрударом."
+	brace_stance.action_category = BattleTypes.ActionType.SKILL
+	brace_stance.target_side = BattleTypes.TargetSide.SELF
+	brace_stance.resource_type = BattleTypes.ResourceType.ENERGY
+	brace_stance.resource_cost = 15
+	brace_stance.enters_stance = true
+	brace_stance.stance_status = BattleTypes.StatusType.INTERCEPT_MELEE
+	brace_stance.stance_duration_turns = 1
+	
 	var eq: EquipmentItemData = EquipmentItemData.new()
 	eq.item_id = "recruit_ash_spear"
 	eq.display_name = "Ясеневое копьё"
-	eq.description = "Древковое одноручное копьё для рекрутов. Со щитом даёт «Начеку», со свободной рукой — «Держать дистанцию»."
-	eq.slot_type = InventoryTypes.EquipmentSlotType.ONE_HAND
+	eq.description = "Двуручное древковое копьё рекрутов (2 базовых навыка, без щитов)."
+	eq.slot_type = InventoryTypes.EquipmentSlotType.TWO_HAND
 	eq.weapon_category = InventoryTypes.WeaponCategory.POLEARM
 	eq.weapon_type = InventoryTypes.WeaponType.SPEAR
-	eq.bonus_attack = 6
+	eq.bonus_attack = 9
 	eq.bonus_speed = 2
-	var sk: Array[SkillData] = [thrust]
+	var sk: Array[SkillData] = [thrust, brace_stance]
 	eq.granted_skills = sk
 	return eq
 
@@ -315,7 +327,7 @@ static func create_nordic_sword() -> EquipmentItemData:
 	var eq: EquipmentItemData = EquipmentItemData.new()
 	eq.item_id = "nordic_sword"
 	eq.display_name = "Северный меч"
-	eq.description = "Одноручный меч (Длинные клинки). В паре с другим клинком без общей синергии даёт свой базовый навык."
+	eq.description = "Одноручный меч (Длинные клинки). Со щитом открывает стойку прикрытия союзника «Начеку»."
 	eq.slot_type = InventoryTypes.EquipmentSlotType.ONE_HAND
 	eq.weapon_category = InventoryTypes.WeaponCategory.LONG_BLADES
 	eq.weapon_type = InventoryTypes.WeaponType.SWORD
@@ -896,11 +908,11 @@ static func create_synergy_catalog() -> Array[WeaponSynergyData]:
 	syn_spear_empty.granted_skill = keep_dist
 	list.append(syn_spear_empty)
 	
-	# 3. Копьё рекрута + Щит -> Стойка «Начеку» (COVER_ALLY)
+	# 3. Меч рекрута + Щит -> Стойка «Начеку» (COVER_ALLY) по канону LONG_BLADES со щитом
 	var cover_ally_sk: SkillData = SkillData.new()
-	cover_ally_sk.skill_id = "synergy_spear_cover_ally"
+	cover_ally_sk.skill_id = "synergy_sword_cover_ally"
 	cover_ally_sk.skill_name = "Начеку"
-	cover_ally_sk.description = "Синергия (Копьё + Щит): прикрывает выбранного союзника, перехватывая удары по нему (-30% урона)."
+	cover_ally_sk.description = "Синергия (Меч + Щит): прикрывает выбранного союзника, перехватывая удары по нему (-30% урона)."
 	cover_ally_sk.action_category = BattleTypes.ActionType.SKILL
 	cover_ally_sk.target_side = BattleTypes.TargetSide.ALLY
 	cover_ally_sk.resource_type = BattleTypes.ResourceType.ENERGY
@@ -909,15 +921,15 @@ static func create_synergy_catalog() -> Array[WeaponSynergyData]:
 	cover_ally_sk.stance_status = BattleTypes.StatusType.COVER_ALLY
 	cover_ally_sk.stance_duration_turns = 2
 	
-	var syn_rec_spear_shield: WeaponSynergyData = WeaponSynergyData.new()
-	syn_rec_spear_shield.synergy_id = "syn_recruit_spear_shield"
-	syn_rec_spear_shield.display_name = "Начеку"
-	syn_rec_spear_shield.description = "Копьё + Щит: открывает защитное прикрытие союзника «Начеку»."
-	syn_rec_spear_shield.primary_weapon_type = InventoryTypes.WeaponType.SPEAR
-	syn_rec_spear_shield.condition = InventoryTypes.HandSynergyCondition.ANY_SHIELD
-	syn_rec_spear_shield.recruit_only = true
-	syn_rec_spear_shield.granted_skill = cover_ally_sk
-	list.append(syn_rec_spear_shield)
+	var syn_rec_sword_shield: WeaponSynergyData = WeaponSynergyData.new()
+	syn_rec_sword_shield.synergy_id = "syn_recruit_sword_shield"
+	syn_rec_sword_shield.display_name = "Начеку"
+	syn_rec_sword_shield.description = "Меч + Щит: открывает защитное прикрытие союзника «Начеку»."
+	syn_rec_sword_shield.primary_weapon_type = InventoryTypes.WeaponType.SWORD
+	syn_rec_sword_shield.condition = InventoryTypes.HandSynergyCondition.ANY_SHIELD
+	syn_rec_sword_shield.recruit_only = true
+	syn_rec_sword_shield.granted_skill = cover_ally_sk
+	list.append(syn_rec_sword_shield)
 	
 	# 4. Хольмсверд + Свободная рука (в т.ч. однорукий Хольмгангер!) -> Стойка «Вызов» (PARRY_STANCE)
 	var challenge_sk: SkillData = SkillData.new()

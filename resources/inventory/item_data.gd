@@ -10,3 +10,5 @@ extends Resource
 @export var stackable: bool = true
 @export_range(1, 999, 1) var max_stack: int = 99
 @export var is_unique: bool = false
+## Опциональная пользовательская текстура иконки из Aseprite (если null — берется PNG по item_id или процедурная из InventoryVisualFactory)
+@export var icon_texture: Texture2D = null

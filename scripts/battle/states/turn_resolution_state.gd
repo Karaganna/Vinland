@@ -33,6 +33,11 @@ func enter() -> void:
 	
 	for hero: Combatant in _context.get_alive_players():
 		hero.restore_resource(BattleTypes.ResourceType.TENSION, 10)
+		if hero.has_rune_seal(&"seal_jera"):
+			var jera_hp: int = hero.heal_hp(maxi(4, roundi(float(hero.max_hp) * 0.08)), true, false)
+			var jera_flow: int = hero.restore_resource(hero.resources.get_working_resource_type(), 8)
+			if jera_hp > 0 or jera_flow > 0:
+				dot_logs.append("[ᛃ Печать Йеры] %s: +%d HP, +%d Потока." % [hero.display_name, jera_hp, jera_flow])
 	
 	_context.turn_number += 1
 	_refresh_ui()

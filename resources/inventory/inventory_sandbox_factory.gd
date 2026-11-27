@@ -4,6 +4,8 @@ extends RefCounted
 
 ## Программная фабрика стартовых расходников, каталога синергий и арсенала песочницы (без ручных .tres)
 
+const RITUAL_ASH_ITEM_ID: String = "ritual_ash"
+
 # -------------------------------------------------------------------------
 # Расходники
 # -------------------------------------------------------------------------
@@ -47,6 +49,16 @@ static func create_clarity_herb() -> ConsumableItemData:
 	item.cure_statuses = cured
 	item.usable_in_battle = true
 	item.usable_in_overworld = false
+	return item
+
+static func create_ritual_ash() -> ConsumableItemData:
+	var item: ConsumableItemData = ConsumableItemData.new()
+	item.item_id = RITUAL_ASH_ITEM_ID
+	item.display_name = "Зола обряда"
+	item.description = "Дешёвая жертвенная зола с кострища. Полностью очищает ветки Старшего футарка и возвращает все вложенные Знаки."
+	item.is_rune_reset_item = true
+	item.usable_in_battle = false
+	item.usable_in_overworld = true
 	return item
 
 # -------------------------------------------------------------------------
@@ -104,22 +116,24 @@ static func create_default_hero_loadout() -> EquipmentLoadout:
 	loadout.equip_into_slot(InventoryTypes.SLOT_BODY, WeaponCatalogFactory.create_seafarer_mail())
 	return loadout
 
-## Возвращает стартовый инвентарь со всеми тестовыми предметами, оружием рекрутов, пращой, комплектами и легендарками
+## Возвращает стартовый инвентарь со всеми тестовыми предметами, «Золой обряда», оружием рекрутов и легендарками
 static func create_starter_inventory() -> InventoryState:
 	var inv: InventoryState = InventoryState.new()
 	inv.add_item(create_healing_brew(), 4)
 	inv.add_item(create_rune_elixir(), 3)
 	inv.add_item(create_clarity_herb(), 2)
+	inv.add_item(create_ritual_ash(), 3)
 	
 	# Фирменное второе оружие ГГ
 	inv.add_item(WeaponCatalogFactory.create_dragonblood_greatsword(), 1)
 	
-	# Оружие мира, комплекты, праща, кистень и легендарки для рекрутов
+	# Оружие мира, комплекты, праща, кистень, древковое 2H и легендарки для рекрутов
 	inv.add_item(WeaponCatalogFactory.create_word_of_honor_holmsverd(), 1)
 	inv.add_item(WeaponCatalogFactory.create_yew_widow_longbow(), 1)
 	inv.add_item(WeaponCatalogFactory.create_sisters_twin_blades_set(), 1)
 	inv.add_item(WeaponCatalogFactory.create_nordic_sword(), 1)
 	inv.add_item(WeaponCatalogFactory.create_iron_langsax(), 1)
+	inv.add_item(WeaponCatalogFactory.create_nordic_atgeir(), 1)
 	inv.add_item(WeaponCatalogFactory.create_leather_sling(), 1)
 	inv.add_item(WeaponCatalogFactory.create_hand_crossbow(), 2)
 	inv.add_item(WeaponCatalogFactory.create_bearded_axe(), 2)

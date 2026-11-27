@@ -2,7 +2,7 @@
 class_name BattleStartState
 extends BaseBattleState
 
-## Инициализация массивов отрядов (из GameManager или Sandbox-фабрики) и стартового состояния интерфейса
+## Инициализация отрядов (с применением Старшего футарка, Резонанса, Оталы и Благословений Богов) и старт боя
 func get_state_id() -> StringName:
 	return &"battle_start"
 
@@ -11,7 +11,7 @@ func enter() -> void:
 		return
 	
 	if GameManager != null:
-		GameManager.ensure_inventory_initialized()
+		GameManager.ensure_party_initialized()
 	
 	if _context.player_party.is_empty() and _context.enemy_party.is_empty():
 		if GameManager != null and GameManager.has_pending_battle():
@@ -34,20 +34,42 @@ func enter() -> void:
 			_context.setup_parties(overworld_players, overworld_enemies)
 		else:
 			_context.is_overworld_battle = false
-			_context.setup_parties(
-				BattleSandboxFactory.create_sandbox_player_party(),
-				BattleSandboxFactory.create_sandbox_enemy_party()
+			var sandbox_players: Array[Combatant] = (
+				GameManager.build_player_party_for_battle()
+				if GameManager != null
+				else BattleSandboxFactory.create_sandbox_player_party()
 			)
+			_context.setup_parties(sandbox_players, BattleSandboxFactory.create_sandbox_enemy_party())
 	else:
 		if _context.player_party.is_empty():
 			var fallback_players: Array[Combatant] = (
 				GameManager.build_player_party_for_battle()
-				if GameManager != null and GameManager.has_pending_battle()
+				if GameManager != null
 				else BattleSandboxFactory.create_sandbox_player_party()
 			)
 			_context.setup_parties(fallback_players, _context.enemy_party)
 		if _context.enemy_party.is_empty():
 			_context.setup_parties(_context.player_party, BattleSandboxFactory.create_sandbox_enemy_party())
+	
+	# Применяем стартовые барьеры Печатей (Альгиз) и Благословений отряда
+	var prog_notes: PackedStringArray = PackedStringArray()
+	var resonated_names: PackedStringArray = PackedStringArray()
+	var blessing_logged: bool = false
+	for p: Combatant in _context.player_party:
+		if p == null or not p.is_alive():
+			continue
+		if p.start_battle_barrier > 0:
+			p.apply_status(BattleTypes.StatusType.SHIELD_BARRIER, 3, p.runtime_id, 1.0, false, 1, false, p.start_battle_barrier)
+		if p.is_hero and not p.active_great_bind_name.is_empty():
+			prog_notes.append("Ульта: %s" % p.active_great_bind_name)
+		if p.has_resonance_active:
+			resonated_names.append("%s (%s)" % [p.display_name, p.resonance_label])
+		if not blessing_logged and not p.active_blessing_names.is_empty():
+			prog_notes.append("Дар богов: %s" % ", ".join(p.active_blessing_names))
+			blessing_logged = true
+	
+	if not resonated_names.is_empty():
+		prog_notes.append("Резонанс рун: %s" % ", ".join(resonated_names))
 	
 	_context.turn_number = 1
 	_context.battle_victory = false
@@ -74,6 +96,8 @@ func enter() -> void:
 		for enemy: Combatant in alive_enemies:
 			enemy_names.append(enemy.display_name)
 		intro_msg = "Бой начался! Противник: %s." % ", ".join(enemy_names)
+	if not prog_notes.is_empty():
+		intro_msg = "%s [%s]" % [intro_msg, " · ".join(prog_notes)]
 	
 	_emit_log(intro_msg)
 	_emit_transition(&"player_select")

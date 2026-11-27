@@ -53,11 +53,12 @@ func enter() -> void:
 		_advance_after_action()
 		return
 	
-	# Списание ресурса (маршрутизируется через единый «Поток» у ГГ или основной бак у рекрута)
+	# Списание ресурса (маршрутизируется через единый «Поток» у ГГ или основной бак у рекрута; учитывает Печать Ансуз)
+	var eff_cost: int = actor.get_effective_skill_cost(skill)
 	if skill.is_ultimate:
 		_context.pending_tension_tier = actor.resources.consume_tension_for_ultimate()
-	elif skill.resource_cost > 0:
-		if not actor.resources.spend_resource(skill.resource_type, skill.resource_cost):
+	elif eff_cost > 0:
+		if not actor.resources.spend_resource(skill.resource_type, eff_cost):
 			_emit_log("Недостаточно ресурса (%s) для «%s»!" % [
 				actor.resources.get_working_display_name(),
 				skill.skill_name
@@ -67,6 +68,8 @@ func enter() -> void:
 	
 	if skill.energy_restore_on_use > 0:
 		actor.restore_resource(BattleTypes.ResourceType.ENERGY, skill.energy_restore_on_use)
+	if _context.pending_action_type == BattleTypes.ActionType.ATTACK and actor.has_rune_seal(&"seal_fehu"):
+		actor.restore_resource(actor.resources.get_working_resource_type(), 6)
 	
 	# Накладываем NO_GUARD на применяющего до конца хода
 	if skill.is_no_guard():
@@ -118,8 +121,11 @@ func on_qte_completed(accuracy: float, success_tier: String) -> void:
 	var force_crit: bool = bool(eval_res.get("guaranteed_crit", false))
 	var miss_t: float = float(eval_res.get("miss_threshold", 0.30))
 	
-	# Обновление Хамингьи от точности QTE (+при 90-100%, -при промахе)
+	# Обновление Хамингьи от точности QTE (+при 90-100%, -при промахе) и Печать Вуньо
 	var ham_delta: int = actor.resources.apply_hamingja_qte_result(accuracy, miss_t)
+	if tier_label == "ИДЕАЛЬНО" and actor.has_rune_seal(&"seal_wunjo"):
+		for ally_w: Combatant in _context.get_alive_players():
+			ally_w.restore_resource(BattleTypes.ResourceType.TENSION, 8)
 	
 	if _is_ally_or_self_skill(skill):
 		_resolve_support_or_self_skill(actor, skill, mult, tier_label, ham_delta)
@@ -250,11 +256,18 @@ func _resolve_support_or_self_skill(
 		var healed: int = actor.heal_hp(total_heal, false, false)
 		logs.append("Сожжено %d Ярости → +%d HP." % [rage_spent, healed])
 	elif skill.base_heal_amount > 0 and qte_mult > 0.0:
-		var scaled_heal: int = maxi(1, roundi(float(skill.base_heal_amount) * qte_scale * ham_scale))
+		var berkana_mult: float = 1.25 if actor.has_rune_seal(&"seal_berkana") else 1.0
+		var scaled_heal: int = maxi(1, roundi(float(skill.base_heal_amount) * qte_scale * ham_scale * berkana_mult))
 		for rec: Combatant in recipients:
 			var is_ext: bool = rec != actor
 			var healed: int = rec.heal_hp(scaled_heal, is_ext, true)
 			logs.append("%s: +%d HP." % [rec.display_name, healed])
+	
+	# Печать Гебо: поддержка и стойки ГГ дополнительно дают отряду Барьер (+12)
+	if actor.has_rune_seal(&"seal_gebo") and qte_mult > 0.0:
+		for ally_g: Combatant in _context.get_alive_players():
+			ally_g.apply_status(BattleTypes.StatusType.SHIELD_BARRIER, 2, actor.runtime_id, 1.0, false, 1, false, 12)
+		logs.append("[Печать Гебо: +12 Барьера отряду]")
 	
 	if skill.shield_barrier_amount > 0 and qte_mult > 0.0:
 		var barrier_val: int = maxi(1, roundi(float(skill.shield_barrier_amount) * qte_scale * ham_scale))
@@ -375,7 +388,9 @@ func _resolve_offensive_action(
 				1.0,
 				_context.pending_tension_tier,
 				false,
-				force_crit
+				force_crit,
+				_context.turn_number,
+				_context.get_alive_players().size()
 			)
 			if bool(calc.get("missed_by_blind", false)):
 				any_blind_miss = true
@@ -442,6 +457,11 @@ func _resolve_offensive_action(
 				skill.status_is_permanent
 			)
 			msg_parts.append("Наложен статус %s." % BattleTypes.get_status_display_name(skill.status_to_apply))
+		
+		# Печать Кеназ: критический удар ГГ поджигает цель (BURN на 2 хода)
+		if any_crit and actor.has_rune_seal(&"seal_kenaz") and target.is_alive():
+			target.apply_status(BattleTypes.StatusType.BURN, 2, actor.runtime_id, 1.0)
+			msg_parts.append("[Печать Кеназ: Ожог!]")
 		
 		# Пороговые пассивки Потока оружия ГГ (например, Ожог при Потоке >= 90%)
 		if qte_mult > 0.0 and target.is_alive():

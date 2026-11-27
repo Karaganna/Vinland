@@ -123,7 +123,12 @@ func can_equip_for_combatant(combatant_data: CombatantData, slot_id: StringName,
 			if item.is_hero_signature:
 				return {"ok": false, "reason": "Фирменное снаряжение «%s» доступно только Главному герою." % item.display_name}
 	
-	# 2. Привязка рекрута к своей категории оружия (щиты разрешены с учетом проверки «Тяжелого»)
+	# 2. Привязка рекрута к своей категории оружия (щиты разрешены с учетом проверки «Тяжелого», кроме строго двуручного POLEARM)
+	if not combatant_data.is_hero and combatant_data.weapon_category == InventoryTypes.WeaponCategory.POLEARM and item.is_shield_item():
+		return {
+			"ok": false,
+			"reason": "Категория «Древковое» у рекрутов строго двуручная — щиты не используются."
+		}
 	if not combatant_data.is_hero and item.is_weapon_item():
 		var item_cat: InventoryTypes.WeaponCategory = item.get_effective_weapon_category()
 		if combatant_data.weapon_category != InventoryTypes.WeaponCategory.NONE and item_cat != combatant_data.weapon_category:
